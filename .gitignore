@@ -5,3 +5,4 @@ __pycache__/
 starter/out/
 out/
 data/
+*.py[cod]
