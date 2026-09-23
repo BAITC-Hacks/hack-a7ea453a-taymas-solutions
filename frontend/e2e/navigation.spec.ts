@@ -14,6 +14,8 @@ const linked = nodes.find(node => !topIds.has(node.gid)
 const isolated = nodes.find(node => /^(true|1)$/i.test(node.is_seed)
   && !edges.some(edge => edge.src === node.gid || edge.dst === node.gid))!
 
+test.use({ reducedMotion: 'reduce' })
+
 async function expectContext(page: Page, gid: string) {
   const neighbors = new Set([gid])
   for (const edge of edges) {

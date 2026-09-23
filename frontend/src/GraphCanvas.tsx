@@ -240,8 +240,11 @@ export default function GraphCanvas({
     if (node.empty()) return
     cy.stop()
     const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 250
-    cy.animate({ center: { eles: node }, zoom: Math.max(cy.zoom(), 1.2), duration })
-  }, [focusId, focusSequence, nodes, edges, layoutFocusId])
+    // A fixed zoom cropped large neighborhoods after explicit GID navigation.
+    // Fit the observed links as well as the selected client; only navigation
+    // issues a camera command, not a new Copilot answer or highlight update.
+    cy.animate({ fit: { eles: node.closedNeighborhood(), padding: 58 }, duration })
+  }, [focusId, focusSequence])
   useEffect(() => {
     if (!cyRef.current || !host.current) return
     const tokens = getComputedStyle(host.current)
