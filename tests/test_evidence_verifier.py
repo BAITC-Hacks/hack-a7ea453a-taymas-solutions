@@ -100,10 +100,12 @@ def test_rejects_untraced_number_in_summary(tools, answers):
     assert "untraced_number" in _codes(report) and "250 000" in report["untraced_numbers"][0]
 
 
-def test_rounded_numbers_are_traced(tools, answers):
+def test_rounded_numbers_are_diagnostic_not_permission_to_rewrite_summary(tools, answers):
     ans = _fresh(answers, "common_collector")
     ans["summary"] = ans["summary"].replace("150 000 KZT", "150 тыс. KZT (0.15 млн)")
-    assert verify(ans, tools)["ok"]
+    report = verify(ans, tools)
+    assert "summary_mismatch" in _codes(report)
+    assert "untraced_number" not in _codes(report)
     assert [n["value"] for n in parse_numbers("3.8 млн, 110 тыс., 15%, 3 848 436")] == \
         [3_800_000.0, 110_000.0, 15.0, 3_848_436.0]
 

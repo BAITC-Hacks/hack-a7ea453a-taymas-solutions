@@ -110,7 +110,7 @@ export default function CopilotPanel({ data, selectedId, onNavigate, onAnswer }:
           {answer.claims.length > 5 && <details className="copilot-all-facts"><summary>Все подтверждённые факты</summary>{answer.claims.map((claim, index) => <Fact key={index} claim={claim} link={link} />)}</details>}
         </details>
         <details className="copilot-warnings"><summary>Границы данных · {answer.warnings.length}</summary>{answer.warnings.map((warning, i) => <p key={i}>{warning.gid && link(warning.gid)}{warning.message}</p>)}</details>
-        <p className="copilot-audit">Факты сверены с выгрузкой · {answer.tool_calls.length} вызовов инструментов</p>
+        <p className="copilot-audit" title="Проверены значения и источники claims; summary соответствует их шаблону. Истинность гипотез этим не подтверждается.">Факты сверены с выгрузкой · {answer.tool_calls.length} вызовов инструментов</p>
       </>}
     </div>
     <p className="copilot-disclaimer">Гипотезы для проверки, не выводы о виновности.</p>
