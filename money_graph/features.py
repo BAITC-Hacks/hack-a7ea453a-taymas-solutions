@@ -194,18 +194,25 @@ def temporal_features(tx: pd.DataFrame, df: pd.DataFrame) -> pd.DataFrame:
 
 
 def cycle_features(G: nx.DiGraph, df: pd.DataFrame) -> pd.DataFrame:
-    """Возвратные потоки: простые направленные циклы длиной 2..CYCLE_MAX_LEN.
+    """Простые направленные циклы до CYCLE_MAX_LEN (петля имеет длину 1).
 
     n_cycles — во скольких циклах участвует узел; min_cycle_len — длина самого
-    короткого (2 = взаимные переводы A⇄B, 3+ = деньги возвращаются через посредников).
+    короткого (2 = взаимные переводы A⇄B). has_long_cycle — наличие хотя бы
+    одного цикла длиной COORD_CYCLE_MIN_LEN..CYCLE_MAX_LEN (сейчас 3..5),
+    независимо от наличия более короткого. Это структура месячного графа,
+    не доказательство возврата тех же денег в правильном временном порядке.
     """
     cnt, shortest = Counter(), {}
+    long_nodes = set()
     for cyc in nx.simple_cycles(G, length_bound=C.CYCLE_MAX_LEN):
+        if len(cyc) >= C.COORD_CYCLE_MIN_LEN:
+            long_nodes.update(cyc)
         for v in cyc:
             cnt[v] += 1
-            shortest[v] = min(shortest.get(v, 99), len(cyc))
+            shortest[v] = min(shortest.get(v, len(cyc)), len(cyc))
     df["n_cycles"] = df.gid.map(cnt).fillna(0).astype(int)
     df["min_cycle_len"] = df.gid.map(shortest).fillna(0).astype(int)
+    df["has_long_cycle"] = df.gid.isin(long_nodes)
     return df
 
 

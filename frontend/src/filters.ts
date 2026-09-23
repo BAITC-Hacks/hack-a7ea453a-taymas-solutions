@@ -1,6 +1,10 @@
 import type { EdgeRecord, FilterState, NodeRecord } from './types'
 
-export function filterNodes(nodes: NodeRecord[], filters: FilterState, topIds = new Set<string>()): NodeRecord[] {
+export function filterNodes(
+  nodes: NodeRecord[],
+  filters: FilterState,
+  topIds = new Set<string>(),
+): NodeRecord[] {
   const needle = filters.search.trim().toLowerCase()
   return nodes.filter((node) => {
     if (needle && !node.gid.toLowerCase().includes(needle)) return false
@@ -20,7 +24,9 @@ export function findNodeByGid(nodes: NodeRecord[], query: string): NodeRecord | 
 }
 
 export function capGraph(nodes: NodeRecord[], edges: EdgeRecord[], limit: number) {
-  const visible = [...nodes].sort((a, b) => b.priority_score - a.priority_score || a.gid.localeCompare(b.gid)).slice(0, limit)
+  const visible = [...nodes]
+    .sort((a, b) => b.priority_score - a.priority_score || a.gid.localeCompare(b.gid))
+    .slice(0, limit)
   const ids = new Set(visible.map((node) => node.gid))
   return { nodes: visible, edges: edges.filter((edge) => ids.has(edge.src) && ids.has(edge.dst)) }
 }
@@ -57,4 +63,41 @@ export function summarizeNodeFlows(gid: string, edges: EdgeRecord[]): NodeFlowSu
 
 export function isBoundaryNode(node: NodeRecord): boolean {
   return node.boundary_depth4 || node.depth >= 4
+}
+
+/** A focused client must remain visible, even when it is below the node cap. */
+export function buildGraphView(
+  nodes: NodeRecord[],
+  edges: EdgeRecord[],
+  filters: FilterState,
+  topIds: Set<string>,
+  selectedId?: string,
+  neighborsOnly = false,
+) {
+  const selected = nodes.find((node) => node.gid === selectedId)
+  const exact = findNodeByGid(nodes, filters.search)
+  // Exact GID lookup intentionally opens its context independently of facet filters.
+  const focus = exact ?? (neighborsOnly ? selected : undefined)
+  let candidates = filterNodes(nodes, filters, topIds)
+  if (focus) {
+    const ids = new Set([focus.gid])
+    edges.forEach((edge) => {
+      if (edge.src === focus.gid) ids.add(edge.dst)
+      if (edge.dst === focus.gid) ids.add(edge.src)
+    })
+    candidates = nodes.filter((node) => ids.has(node.gid))
+  }
+  const graph = capGraph(candidates, edges, filters.limit)
+  const pinned = focus ?? selected
+  // Do not reintroduce a selection excluded by the current filters.
+  if (
+    pinned &&
+    candidates.some((node) => node.gid === pinned.gid) &&
+    !graph.nodes.some((node) => node.gid === pinned.gid)
+  ) {
+    graph.nodes = [pinned, ...graph.nodes.slice(0, Math.max(0, filters.limit - 1))]
+    const ids = new Set(graph.nodes.map((node) => node.gid))
+    graph.edges = edges.filter((edge) => ids.has(edge.src) && ids.has(edge.dst))
+  }
+  return { ...graph, total: candidates.length, focused: Boolean(focus), contextId: focus?.gid }
 }
