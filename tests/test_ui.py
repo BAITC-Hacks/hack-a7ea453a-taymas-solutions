@@ -56,6 +56,34 @@ def test_filters_and_max_nodes_are_deterministic():
     assert truncated is True
 
 
+def test_top_priority_mode_respects_active_filters():
+    edges, roles = sample_tables()
+    nodes, _, selected, truncated = select_view(
+        edges,
+        roles,
+        selected_roles=["terminal"],
+        mode="Сеть по фильтрам",
+        max_nodes=10,
+    )
+    assert selected is None
+    assert list(nodes.gid) == [3]
+    assert truncated is False
+
+
+def test_known_gid_can_be_outside_current_filtered_slice():
+    edges, roles = sample_tables()
+    nodes, _, selected, _ = select_view(
+        edges,
+        roles,
+        query="1",
+        selected_roles=["terminal"],
+        mode="Сеть по фильтрам",
+    )
+    assert 1 in set(roles.gid)
+    assert 1 not in set(nodes.gid)
+    assert selected is None
+
+
 def test_load_data_requires_generated_roles(tmp_path):
     (tmp_path / "data").mkdir()
     (tmp_path / "out").mkdir()

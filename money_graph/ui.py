@@ -53,6 +53,24 @@ def load_data(data_dir: Path, out_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame
     roles["gid"] = roles["gid"].astype("int64")
     roles["cluster_id"] = roles["cluster_id"].astype("Int64")
 
+    # The priority explanation is produced by the ranking stage.  Older
+    # outputs may not contain it in nodes_roles.csv, so enrich the node table
+    # from top_nodes.csv when that file is available.
+    if "priority_why" not in roles.columns:
+        roles["priority_why"] = pd.NA
+    top_path = out_dir / "top_nodes.csv"
+    if top_path.exists():
+        top = pd.read_csv(top_path)
+        missing_top = {"gid", "why"} - set(top.columns)
+        if missing_top:
+            raise ValueError(f"В top_nodes.csv отсутствуют колонки: {sorted(missing_top)}")
+        top = top[["gid", "why"]].copy()
+        top["gid"] = top["gid"].astype("int64")
+        top = top.rename(columns={"why": "priority_why_from_top"})
+        roles = roles.merge(top, on="gid", how="left", validate="one_to_one")
+        roles["priority_why"] = roles["priority_why"].fillna(roles["priority_why_from_top"])
+        roles = roles.drop(columns=["priority_why_from_top"])
+
     nodes_path = data_dir / "nodes.parquet"
     if nodes_path.exists():
         nodes = pd.read_parquet(nodes_path, columns=["gid", "depth", "is_seed"])

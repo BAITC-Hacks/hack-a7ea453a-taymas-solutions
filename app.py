@@ -13,7 +13,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from money_graph.ui import load_data, select_view
+from money_graph.ui import load_data, parse_gid, select_view
 
 
 ROLE_COLORS = {
@@ -28,6 +28,30 @@ CLUSTER_COLORS = [
     "#2563eb", "#0f766e", "#c2410c", "#7c3aed", "#be123c",
     "#0369a1", "#4d7c0f", "#a16207", "#9333ea", "#475569",
 ]
+
+
+def _arrow_segment(x_src: float, y_src: float, x_dst: float, y_dst: float) -> dict[str, float]:
+    """Return a Plotly annotation with the arrowhead pointing at dst."""
+    # Plotly's x/y are the arrowhead and ax/ay are the tail.  Using two
+    # different points along the src→dst segment also separates reciprocal
+    # arrows A→B and B→A visually.
+    tail_t, head_t = 0.60, 0.80
+    return {
+        "x": x_src * (1 - head_t) + x_dst * head_t,
+        "y": y_src * (1 - head_t) + y_dst * head_t,
+        "xref": "x",
+        "yref": "y",
+        "ax": x_src * (1 - tail_t) + x_dst * tail_t,
+        "ay": y_src * (1 - tail_t) + y_dst * tail_t,
+        "axref": "x",
+        "ayref": "y",
+        "showarrow": True,
+        "arrowhead": 2,
+        "arrowsize": 0.8,
+        "arrowwidth": 1,
+        "arrowcolor": "rgba(71, 85, 105, .55)",
+        "text": "",
+    }
 
 
 st.set_page_config(page_title="Граф денег", page_icon="↗", layout="wide", initial_sidebar_state="expanded")
@@ -78,16 +102,7 @@ def make_figure(view_nodes: pd.DataFrame, view_edges: pd.DataFrame, color_by: st
         edge_y += [y[src], y[dst], None]
         edge_hover += [f"{src} → {dst}<br>{row.sum_kzt:,.0f} KZT<br>{row.n_tx} переводов"] * 3
         if index % arrow_step == 0:
-            start_x = x[src] * 0.52 + x[dst] * 0.48
-            start_y = y[src] * 0.52 + y[dst] * 0.48
-            end_x = x[src] * 0.57 + x[dst] * 0.43
-            end_y = y[src] * 0.57 + y[dst] * 0.43
-            annotations.append({
-                "x": end_x, "y": end_y, "xref": "x", "yref": "y",
-                "ax": start_x, "ay": start_y, "axref": "x", "ayref": "y",
-                "showarrow": True, "arrowhead": 2, "arrowsize": 0.8, "arrowwidth": 1,
-                "arrowcolor": "rgba(71, 85, 105, .55)", "text": "",
-            })
+            annotations.append(_arrow_segment(x[src], y[src], x[dst], y[dst]))
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -106,10 +121,21 @@ def make_figure(view_nodes: pd.DataFrame, view_edges: pd.DataFrame, color_by: st
 
     for label, frame, color in groups:
         score = frame["priority_score"].fillna(frame["role_score"]).fillna(0).clip(0, 1)
-        hover = [
-            f"gid {int(row.gid)}<br>role: {row.role}<br>cluster: {row.cluster_id}<br>priority: {row.priority_score:.3f}"
-            for row in frame.itertuples(index=False)
-        ]
+        hover = []
+        for row in frame.itertuples(index=False):
+            priority_why = getattr(row, "priority_why", None)
+            evidence = getattr(row, "evidence", None)
+            details = [
+                f"gid {int(row.gid)}",
+                f"role: {row.role}",
+                f"cluster: {row.cluster_id}",
+                f"priority: {row.priority_score:.3f}",
+            ]
+            if pd.notna(priority_why) and str(priority_why).strip():
+                details.append(f"why: {priority_why}")
+            if pd.notna(evidence) and str(evidence).strip():
+                details.append(f"evidence: {evidence}")
+            hover.append("<br>".join(details))
         fig.add_trace(go.Scatter(
             x=[x[int(gid)] for gid in frame["gid"]], y=[y[int(gid)] for gid in frame["gid"]],
             mode="markers", name=label, text=hover, hoverinfo="text",
@@ -165,20 +191,20 @@ def main():
         max_nodes = st.slider("Максимум узлов", 30, 500, 120, step=10)
         color_by = st.radio("Цвет узлов", ["Роль", "Кластер"], index=0)
 
+    searched_gid = parse_gid(query)
+    known_gids = set(roles["gid"].astype("int64"))
+    gid_exists = searched_gid is not None and searched_gid in known_gids
+
     mode_for_selection = "Сеть по фильтрам" if mode == "Верхние приоритеты" else mode
     view_nodes, view_edges, selected_gid, truncated = select_view(
         edges, roles, query, selected_roles, selected_clusters, depth_range,
         seeds_only, mode_for_selection, max_nodes,
     )
 
-    if mode == "Верхние приоритеты" and not query:
-        view_nodes = roles.sort_values(["priority_score", "gid"], ascending=[False, True]).head(max_nodes).copy()
-        ids = set(view_nodes["gid"])
-        view_edges = edges[edges["src"].isin(ids) & edges["dst"].isin(ids)].copy()
-        truncated = len(roles) > max_nodes
-
-    if query and selected_gid is None:
-        st.warning("Узел с таким gid не найден в текущем output.")
+    if query and not gid_exists:
+        st.warning("Узел с таким gid не найден в nodes_roles.csv.")
+    elif query and selected_gid is None:
+        st.info("Узел найден, но не входит в текущий срез фильтров. Его карточка доступна ниже; очистите фильтры, чтобы увидеть связи на графе.")
     if truncated:
         st.caption(f"Показана выборка из {len(view_nodes)} узлов. Увеличьте лимит или сузьте фильтры.")
 
@@ -190,19 +216,57 @@ def main():
 
     if view_nodes.empty:
         st.info("Нет узлов по выбранным фильтрам.")
-        return
+    else:
+        figure = make_figure(view_nodes, view_edges, color_by, selected_gid)
+        st.plotly_chart(figure, width="stretch", config={"displaylogo": False, "scrollZoom": True})
+        st.caption("Стрелки показывают направление src → dst. Размер узла пропорционален priority_score.")
 
-    figure = make_figure(view_nodes, view_edges, color_by, selected_gid)
-    st.plotly_chart(figure, use_container_width=True, config={"displaylogo": False, "scrollZoom": True})
-    st.caption("Стрелки показывают направление src → dst. Размер узла пропорционален priority_score.")
+        with st.expander("Связи в текущем обзоре", expanded=False):
+            edge_table = view_edges.rename(columns={"src": "Отправитель", "dst": "Получатель", "sum_kzt": "Сумма KZT", "n_tx": "Переводы"})
+            st.dataframe(edge_table, width="stretch", hide_index=True)
 
-    with st.expander("Связи в текущем обзоре", expanded=False):
-        edge_table = view_edges.rename(columns={"src": "Отправитель", "dst": "Получатель", "sum_kzt": "Сумма KZT", "n_tx": "Переводы"})
-        st.dataframe(edge_table, use_container_width=True, hide_index=True)
+        with st.expander("Узлы в текущем обзоре", expanded=False):
+            node_columns = [c for c in ["gid", "role", "role_score", "cluster_id", "depth", "is_seed", "priority_score", "evidence", "priority_why"] if c in view_nodes]
+            st.dataframe(view_nodes[node_columns], width="stretch", hide_index=True)
 
-    with st.expander("Узлы в текущем обзоре", expanded=False):
-        node_columns = [c for c in ["gid", "role", "cluster_id", "depth", "is_seed", "priority_score"] if c in view_nodes]
-        st.dataframe(view_nodes[node_columns], use_container_width=True, hide_index=True)
+    # Keep node details independent from the current graph slice.  A searched
+    # gid can be outside the top-N or active filters and still needs an
+    # auditable explanation for the analyst.
+    detail_gid = searched_gid if gid_exists else selected_gid
+    if detail_gid is not None:
+        detail = roles.loc[roles["gid"] == detail_gid].iloc[0]
+        st.subheader(f"Карточка узла {detail_gid}")
+        metric_cols = st.columns(4)
+        metric_cols[0].metric("Роль", str(detail.get("role", "—")))
+        metric_cols[1].metric("Role score", f"{float(detail.get('role_score', 0)):.3f}")
+        metric_cols[2].metric("Priority", f"{float(detail.get('priority_score', 0)):.3f}")
+        metric_cols[3].metric("Кластер", str(detail.get("cluster_id", "—")))
+
+        depth_value = detail.get("depth")
+        depth_text = str(int(depth_value)) if pd.notna(depth_value) else "—"
+        seed_value = detail.get("is_seed", False)
+        seed_text = "да" if pd.notna(seed_value) and bool(seed_value) else "нет"
+        st.markdown(f"**Глубина:** {depth_text}  ·  **Seed:** {seed_text}")
+        evidence = detail.get("evidence")
+        if pd.notna(evidence) and str(evidence).strip():
+            st.markdown(f"**Почему присвоена роль:** {evidence}")
+        priority_why = detail.get("priority_why")
+        if pd.notna(priority_why) and str(priority_why).strip():
+            st.markdown(f"**Почему в приоритете:** {priority_why}")
+        if depth_text == "4" or str(detail.get("boundary", "")) == "out_hidden":
+            st.warning("Исходящие потоки не наблюдаются: обход графа остановлен на depth=4. Это не доказывает, что деньги остались на узле.")
+
+        incoming = edges.loc[edges["dst"] == detail_gid, ["src", "sum_kzt", "n_tx"]].copy()
+        incoming = incoming.rename(columns={"src": "Отправитель", "sum_kzt": "Сумма KZT", "n_tx": "Переводы"})
+        outgoing = edges.loc[edges["src"] == detail_gid, ["dst", "sum_kzt", "n_tx"]].copy()
+        outgoing = outgoing.rename(columns={"dst": "Получатель", "sum_kzt": "Сумма KZT", "n_tx": "Переводы"})
+        flow_cols = st.columns(2)
+        with flow_cols[0]:
+            st.markdown(f"**Получает от ({len(incoming)})**")
+            st.dataframe(incoming, width="stretch", hide_index=True)
+        with flow_cols[1]:
+            st.markdown(f"**Отправляет ({len(outgoing)})**")
+            st.dataframe(outgoing, width="stretch", hide_index=True)
 
 
 if __name__ == "__main__":
