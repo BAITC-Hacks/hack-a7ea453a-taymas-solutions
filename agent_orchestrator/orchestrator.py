@@ -5,7 +5,7 @@ import json
 import logging
 import time
 
-from .brief import NEXT_STEPS, compose, empty_answer
+from .brief import compose, empty_answer
 from .contracts import (MAX_ANSWER_BYTES, MAX_CONTEXT_BYTES, MAX_TOOL_CALLS,
                         Answer, Request, RequestError, for_browser, json_text)
 from .nvidia import NvidiaClient, ProviderError, TIMEOUT_SECONDS
@@ -108,6 +108,8 @@ def _select_plan(client, request, intent, calls, specs, deadline):
 
 
 def _select_evidence(client, answer, deadline):
+    from agent_tools.answer import NEXT_STEPS
+
     # Only a small set of typed facts and selected edges is sent. No complete
     # store, free-text evidence/why, credentials or previous chat history.
     candidate_gids = {c["gid"] for c in answer["candidates"]}

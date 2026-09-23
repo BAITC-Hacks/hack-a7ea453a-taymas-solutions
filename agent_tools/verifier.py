@@ -5,8 +5,8 @@ verify(answer, tools) проверяет ответ по локальным вы
   * все gid (в полях и в тексте) есть в nodes_roles.csv;
   * каждый claim сверяется с CSV: узел — nodes_roles.csv, ребро — edge_table.csv,
     кластер — clusters.csv; ссылка source указывает ровно на этот файл, gid/ребро и колонку;
-  * каждое число в summary и next_steps прослеживается до данных (claims, строки
-    использованных узлов и рёбер, тексты evidence/why, повторно выполненные tool_calls);
+  * summary точно совпадает с представлением типизированных claims, next_steps
+    берутся из фиксированного набора; поиск чисел остаётся дополнительной диагностикой;
   * узел 4-го колена не назван terminal и сопровождается предупреждением о границе обхода;
   * в ответе есть gid и хотя бы один подтверждённый источник;
   * tool_calls — только из allow-list и с корректными аргументами;
@@ -21,7 +21,7 @@ import math
 import re
 
 from . import ALLOWED_TOOLS, PARAMETERS, GraphTools, call_tool, validate
-from .answer import ANSWER_SCHEMA, SOURCE_FILE
+from .answer import ANSWER_SCHEMA, NEXT_STEPS, SOURCE_FILE, render_summary
 from .safety import find_injection
 
 KZT_ABS_TOL = 0.01              # копейки float
@@ -198,6 +198,17 @@ def verify(answer: dict, tools: GraphTools) -> dict:
     if not any(s.get("status") == "verified" for s in statuses):
         err("no_verified_source", "в ответе нет ни одного факта, подтверждённого ссылкой на CSV")
 
+    # Known numbers alone cannot bind prose to a node, field or direction.
+    try:
+        expected_summary = render_summary(answer)
+    except (KeyError, TypeError, ValueError, IndexError, OverflowError):
+        err("invalid_summary_claims", "claims не позволяют построить однозначный summary")
+    else:
+        if answer["summary"] != expected_summary:
+            err("summary_mismatch", "summary не совпадает с текстом, построенным из типизированных claims")
+    if any(step not in NEXT_STEPS.values() for step in answer["next_steps"]):
+        err("unsupported_next_step", "next_steps должны быть рекомендациями из фиксированного набора")
+
     # --- tool_calls: allow-list, аргументы, повторное выполнение для пула чисел
     pool, texts = set(), []
     for k, call in enumerate(answer["tool_calls"]):
@@ -261,6 +272,10 @@ def mark_unverified(answer: dict, report: dict) -> dict:
     """Копия ответа, где неподтверждённые claims не выдаются за факты:
     расхождение или отсутствие в данных → «не наблюдается», факт без источника → «гипотеза»."""
     marked = copy.deepcopy(answer)
+    if not report.get("ok"):
+        marked["verification"] = "unavailable"
+        marked["summary"] = "Ответ не прошёл проверку; неподтверждённый текст скрыт. Любой вывод — гипотеза для проверки."
+        marked["next_steps"] = []
     by_index = {s["index"]: s for s in report.get("claims", [])}
     no_source = {e["claim"] for e in report.get("errors", []) if e["code"] in ("missing_source", "bad_source")}
     for i, c in enumerate(marked["claims"]):
