@@ -1,4 +1,4 @@
-.inspector.investigation-rail { padding: 0; height: auto; min-height: 670px; display: flex; flex-direction: column; }
+.inspector.investigation-rail { padding: 0; height: 770px; min-height: 670px; display: flex; flex-direction: column; }
 .investigation-tabs { display: flex; flex-shrink: 0; padding: 0 16px; gap: 22px; border-bottom: 1px solid var(--line); height: 44px; background: #0a1524; }
 .investigation-tabs button { color: #91a4bd; border: 0; border-bottom: 2px solid transparent; background: none; font-size: 11px; padding: 0 1px; }
 .investigation-tabs button[aria-selected="true"] { color: var(--mint); border-bottom-color: var(--mint); }

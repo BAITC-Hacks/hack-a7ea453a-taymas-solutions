@@ -15,8 +15,10 @@ MAX_REQUEST_BYTES = 8192
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
-def make_server(backend: GraphBackend, port=8765):
-    """Bind loopback only. The backend is a startup snapshot of local outputs."""
+def make_server(backend: GraphBackend, port=8765, host="127.0.0.1"):
+    """Loopback by default; Docker explicitly binds its internal network interface."""
+    if host not in {"127.0.0.1", "0.0.0.0"}:
+        raise ValueError("Unsupported bind address")
     slots = threading.BoundedSemaphore(2)
 
     class Handler(BaseHTTPRequestHandler):
@@ -93,22 +95,24 @@ def make_server(backend: GraphBackend, port=8765):
             finally:
                 slots.release()
 
-    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    return ThreadingHTTPServer((host, port), Handler)
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Локальный API AML Copilot для React")
     parser.add_argument("--out", default="out", help="Готовые CSV основного пайплайна")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--host", choices=["127.0.0.1", "0.0.0.0"], default="127.0.0.1",
+                        help="0.0.0.0 только для внутренней сети Docker")
     args = parser.parse_args(argv)
     from agent_tools import GraphStore, GraphTools
 
     try:
         backend = GraphBackend(GraphTools(GraphStore.from_dir(args.out)))
-        server = make_server(backend, args.port)
+        server = make_server(backend, args.port, args.host)
     except Exception:
         parser.exit(2, "Не удалось запустить Copilot: проверьте локальные выгрузки и свободен ли порт.\n")
-    print(f"Copilot: http://127.0.0.1:{server.server_port} (локальный режим доступен без NVIDIA)", flush=True)
+    print(f"Copilot: http://{args.host}:{server.server_port} (локальный режим доступен без NVIDIA)", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

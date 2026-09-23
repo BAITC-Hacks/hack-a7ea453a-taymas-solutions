@@ -21,6 +21,8 @@ test('explanation, exact gid navigation, focus and evidence beyond filters', asy
   await expect(page.getByText('Локальный ответ', { exact: true })).toBeVisible()
   await expect(page.locator('.copilot-summary')).toContainText('гипотеза для проверки')
   await expect(page.locator('.graph-evidence-note')).toContainText('вне фильтров')
+  expect((await page.locator('.workspace').boundingBox())!.height).toBeLessThan(900)
+  await page.evaluate(() => window.scrollTo(0, 0))
   await page.screenshot({ path: 'test-results/copilot-answer.png', fullPage: true })
   await page.getByRole('button', { name: `Открыть узел ${primary}`, exact: true }).first().click()
   await expect(page.getByRole('region', { name: `Карточка узла ${primary}`, exact: true })).toBeVisible()

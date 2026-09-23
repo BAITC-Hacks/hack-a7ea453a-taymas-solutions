@@ -42,7 +42,11 @@ python -m money_graph --data data --out out --check-repro
 ## Устройство
 
 Опциональный AML Copilot (PAN-46): [контракт, локальный режим и NVIDIA adapter](docs/agent_orchestrator.md).
-Использует graph tools PAN-45 и verifier PAN-47 после их подключения. Основной пайплайн от него не зависит.
+Использует graph tools PAN-45 и verifier PAN-47. Основной пайплайн от него не зависит.
+
+Панель помощника в React (PAN-48): [запуск, проверка фактов и демо на 90 секунд](docs/copilot_panel.md).
+Docker Compose запускает локальный API автоматически; для Vite отдельно выполните
+`python -m agent_orchestrator.server --out out`. NVIDIA для локальных ответов не нужна.
 
 ```
 money_graph/          основной пайплайн: python -m money_graph

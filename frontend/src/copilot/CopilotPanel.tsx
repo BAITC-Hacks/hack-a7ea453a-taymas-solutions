@@ -66,6 +66,7 @@ export default function CopilotPanel({ data, selectedId, onNavigate, onAnswer }:
     try {
       const result = await askCopilot({ question: question.trim(), selected_gids: context, use_nvidia: useAI }, data, controller.signal)
       if (controller.signal.aborted) return
+      setAvailability(current => ({ ready: true, nvidia_available: current?.nvidia_available ?? false }))
       setAnswer(result); onAnswer(result)
     } catch (caught) {
       if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : 'Не удалось получить ответ.')

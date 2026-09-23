@@ -16,6 +16,27 @@ services:
         target: /app/out
     restart: "no"
 
+  copilot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: pipeline
+    image: money-graph-pipeline:local
+    entrypoint: ["python", "-m", "agent_orchestrator.server"]
+    command: ["--out", "/app/out", "--host", "0.0.0.0"]
+    depends_on:
+      pipeline:
+        condition: service_completed_successfully
+    environment:
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-}
+    volumes:
+      - type: bind
+        source: ./out
+        target: /app/out
+        read_only: true
+    restart: unless-stopped
+
   ui:
     build:
       context: .
@@ -26,7 +47,7 @@ services:
       pipeline:
         condition: service_completed_successfully
     ports:
-      - "127.0.0.1:8501:80"
+      - "127.0.0.1:${UI_PORT:-8501}:80"
     volumes:
       - type: bind
         source: ./out
