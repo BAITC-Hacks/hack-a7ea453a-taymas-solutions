@@ -1,0 +1,35 @@
+services:
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: pipeline
+    image: money-graph-pipeline:local
+    command: ["--data", "/app/data", "--out", "/app/out", "--check-repro"]
+    volumes:
+      - type: bind
+        source: ./data
+        target: /app/data
+        read_only: true
+      - type: bind
+        source: ./out
+        target: /app/out
+    restart: "no"
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ui
+    image: money-graph-ui:local
+    depends_on:
+      pipeline:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8501:80"
+    volumes:
+      - type: bind
+        source: ./out
+        target: /usr/share/nginx/html/out
+        read_only: true
+    restart: unless-stopped
