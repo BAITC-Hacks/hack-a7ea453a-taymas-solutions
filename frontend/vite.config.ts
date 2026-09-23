@@ -32,5 +32,7 @@ export default defineConfig({
   }],
   server: {
     fs: { allow: [path.resolve(projectDir, '..')] },
+    proxy: { '/api/copilot': { target: 'http://127.0.0.1:8765', changeOrigin: true } },
   },
+  preview: { proxy: { '/api/copilot': { target: 'http://127.0.0.1:8765', changeOrigin: true } } },
 })
