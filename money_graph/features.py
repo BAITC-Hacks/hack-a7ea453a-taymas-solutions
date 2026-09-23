@@ -132,13 +132,14 @@ def boundary_features(df: pd.DataFrame) -> pd.DataFrame:
     Граф собран обходом исходящих от seed на MAX_DEPTH колен, поэтому:
       * depth < MAX_DEPTH  → исходящие узла выгружены полностью (рёбра 4-го колена
         как раз исходят из узлов depth=3), out_deg = 0 здесь — наблюдаемый факт;
-      * depth = MAX_DEPTH  → исходящие не выгружались вообще: out_deg = 0 ничего
+      * depth = MAX_DEPTH  → boundary_depth4: исходящие не выгружались вообще, out_deg = 0 ничего
         не говорит о том, осели ли деньги (ловушка 1);
       * is_seed            → входящие извне выборки не видны, in_kzt занижен
         и pass_through некорректен (ловушка 2).
     boundary — одно из: full / out_hidden / in_hidden / isolated.
     """
-    df["out_observable"] = df.depth < C.MAX_DEPTH
+    df["boundary_depth4"] = df.depth == C.MAX_DEPTH     # граница обхода: исходящие не выгружались
+    df["out_observable"] = ~df.boundary_depth4
     df["in_underestimated"] = df.is_seed
     df["boundary"] = np.select(
         [(df.in_deg == 0) & (df.out_deg == 0), ~df.out_observable, df.in_underestimated],
