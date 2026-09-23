@@ -27,15 +27,14 @@ data/
 Из корня репозитория:
 
 ```bash
-mkdir -p out
-docker compose up --build
+./scripts/docker-compose.sh up --build
 ```
 
 После успешного завершения `pipeline` Compose запускает `ui` и `copilot`. Откройте
 <http://127.0.0.1:8501>. Остановка:
 
 ```bash
-docker compose down
+./scripts/docker-compose.sh down
 ```
 
 Помощник доступен во вкладке справа от графа. Его API не публикуется отдельным
@@ -45,7 +44,7 @@ docker compose down
 Если нужен только пересчёт CSV:
 
 ```bash
-docker compose run --rm pipeline
+./scripts/docker-compose.sh run --rm pipeline
 ```
 
 Результаты будут в `out/nodes_roles.csv`, `out/clusters.csv`,
@@ -53,14 +52,76 @@ docker compose run --rm pipeline
 для направленных связей и сумм потоков. Команда pipeline запускается с
 `--check-repro` и завершится с ошибкой, если второй прогон даст другие sha256.
 
+## Права каталогов и порты
+
+`scripts/docker-compose.sh` создаёт `out/` от имени текущего пользователя и
+передаёт его UID/GID в `pipeline` и `copilot` через `LOCAL_UID` / `LOCAL_GID`.
+На обычном Linux-хосте пользователь UID 1000 сможет записать результаты в
+свой каталог с mode 0755. `chown` в Dockerfile действует только на слой image
+и не меняет владельца примонтированного каталога хоста. Запускайте скрипт от
+обычного пользователя, имеющего доступ к Docker; `chmod 777` не требуется.
+
+Для прямого использования Compose сначала подготовьте каталог и окружение:
+
+```bash
+mkdir -p out
+export LOCAL_UID=$(id -u) LOCAL_GID=$(id -g)
+docker compose up --build -d
+```
+
+Без этих переменных прямой Compose использует UID/GID 10001, поэтому владелец
+существующего `out/` должен дать этому пользователю право записи. Скрипт не
+меняет права чужих файлов; при старых root-owned результатах используйте новый
+каталог через `OUT_DIR`. `DATA_DIR` задаёт каталог входа (read-only).
+
+```bash
+UI_PORT=8508 OUT_DIR=./out_review ./scripts/docker-compose.sh up --build -d
+```
+
+Copilot имеет собственный healthcheck `/api/copilot/status`. UI запускается
+после pipeline независимо от состояния помощника. Порт API остаётся внутренним.
+
 ## Smoke-проверка
 
-Скрипт проверяет входные parquet, наличие всех четырёх CSV, health endpoint
-nginx и доступность `edge_table.csv` из браузерного контейнера:
+Скрипт собирает отдельный Compose-проект, использует временный каталог вывода
+и свободный локальный порт. Он проверяет четыре CSV и воспроизводимость,
+права записи pipeline, `/healthz`, статус Copilot и реальный вопрос с
+`use_nvidia=true` при пустом ключе: ответ должен быть `fallback/no_api_key`,
+с проверенными claims и источниками. Затем останавливает только свой Copilot
+и проверяет доступность UI и побайтное совпадение всех CSV через HTTP.
+После проверки временные контейнеры/каталог удаляются; работающие демо других
+Compose-проектов и обычный `out/` не затрагиваются.
 
 ```bash
 ./scripts/docker-smoke.sh
+# Явно проверить нестандартный порт и ждать готовности до 90 секунд:
+UI_PORT=18566 SMOKE_TIMEOUT=90 ./scripts/docker-smoke.sh
 ```
+
+Нужны Docker Compose, curl и стандартные Unix-утилиты; JSON проверяется Python
+внутри образа. `NVIDIA_API_KEY` и `NVIDIA_MODEL` принудительно пусты только в
+процессе smoke. Фактический адрес берётся из `docker compose port`, ожидание
+готовности и отдельные HTTP-запросы ограничены по времени.
+
+Для проверки интерфейса настоящим Chromium дополнительно установите frontend
+dev-зависимости и браузер (`cd frontend && npm ci && npx playwright install chromium`).
+Затем из корня:
+
+```bash
+SMOKE_BROWSER=1 UI_PORT=18566 ./scripts/docker-smoke.sh
+```
+
+Он проверит показ локального ответа, сообщение «Нет связи с помощником» после
+остановки API, ошибку повторного вопроса и работу графа/фильтра в этом состоянии.
+
+Проверка PAN-66 от 23.09.2026: macOS arm64, Docker Desktop 4.88.1,
+Engine 29.7.2 (Linux arm64), Compose 5.4.0. Команда
+`SMOKE_BROWSER=1 UI_PORT=18566 ./scripts/docker-smoke.sh` прошла полностью,
+включая Chromium online/offline. На отдельном Linux-volume с владельцем
+1000:1000 и mode 0755 UID 10001 не имел права записи; запуск pipeline от
+1000:1000 создал четыре CSV, прошёл 27 проверок и повторяемость (2.82 с
+первый расчёт). Это проверка Linux-прав внутри VM Docker Desktop;
+чистый физический Linux-хост и Windows отдельно не проверялись.
 
 Внутри образа зафиксированы Python 3.11 и `networkx==3.6.1` из
 `requirements.txt`. Это важно для одинаковой кластеризации Louvain и
@@ -68,7 +129,7 @@ nginx и доступность `edge_table.csv` из браузерного к�
 
 ```bash
 sha256sum out/*.csv
-docker compose run --rm pipeline
+./scripts/docker-compose.sh run --rm pipeline
 sha256sum out/*.csv
 ```
 
