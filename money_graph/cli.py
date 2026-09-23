@@ -1,7 +1,11 @@
-"""Точка входа: сырые parquet → признаки → роли → три CSV.
+"""Точка входа: сырые parquet → признаки → роли → выгрузки и отчёт о прогоне.
 
 Запуск:
     python -m money_graph --data data --out out
+    python -m money_graph --data data --out out --check-repro   # + повторный прогон и сверка sha256
+
+Коды выхода: 0 — OK; 2 — вход не прошёл проверку; 3 — выгрузки не прошли проверку;
+4 — повторный прогон дал другие файлы.
 """
 
 import argparse
@@ -9,25 +13,10 @@ import sys
 import time
 from pathlib import Path
 
-from .features import build_features
-from .graph import build_graph, edge_table, edge_table_for_csv
-from .io import InputSchemaError, load, print_report, validate_inputs
-from .outputs import nodes_roles_table, validate, write_outputs
-from .ranking import assign_clusters, assign_priority, top_nodes_table
-from .roles import ROLES, assign_roles
-
-
-def summary(df):
-    print("РОЛИ")
-    print("-" * 64)
-    counts = df.role.value_counts()
-    for role in ROLES:
-        rules = df[df.role == role].role_rule.value_counts()
-        detail = ", ".join(f"{r}={n}" for r, n in rules.items())
-        print(f"  {role:<13}: {counts.get(role, 0):>5}   ({detail})")
-    d4 = df[df.depth == 4]
-    print(f"\n  depth=4: {len(d4)} узлов, terminal среди них: {(d4.role == 'terminal').sum()}")
-    print("-" * 64)
+from .io import InputSchemaError, print_report
+from .outputs import OutputSchemaError, write_outputs
+from .pipeline import run
+from .report import build_report, print_summary, write_report
 
 
 def main(argv=None):
@@ -37,29 +26,36 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Граф денег: роли, кластеры, приоритеты")
     ap.add_argument("--data", default="data", help="папка с edges/nodes/transactions.parquet")
     ap.add_argument("--out", default="out", help="куда писать выгрузки")
+    ap.add_argument("--check-repro", action="store_true",
+                    help="прогнать пайплайн второй раз и сверить sha256 всех выгрузок")
     a = ap.parse_args(argv)
+    out_dir = Path(a.out)
 
-    t0 = time.perf_counter()
     try:
-        edges, nodes, tx, report = validate_inputs(*load(Path(a.data)))
+        result = run(Path(a.data))
     except (FileNotFoundError, InputSchemaError) as exc:
-        print(f"ОШИБКА: {exc}", file=sys.stderr)
+        print(f"ОШИБКА ВХОДА: {exc}", file=sys.stderr)
         sys.exit(2)
-    print_report(report)
-    edges_tbl = edge_table(edges, nodes, tx)
-    G = build_graph(edges_tbl, nodes)
-    df = build_features(G, nodes, tx)
-    df = assign_roles(df)
-    df, clusters = assign_clusters(df, edges, nodes)
-    df = assign_priority(df)
+    except OutputSchemaError as exc:
+        print(f"ОШИБКА ВЫГРУЗОК: {exc}", file=sys.stderr)
+        sys.exit(3)
+    print_report(result.input_report)
+    write_outputs(result.files, out_dir)
 
-    nodes_roles = nodes_roles_table(df)
-    top = top_nodes_table(df)
-    validate(nodes_roles, len(nodes), clusters, top)
-    write_outputs(nodes_roles, clusters, top, edge_table_for_csv(edges_tbl), Path(a.out))
+    repro = None
+    if a.check_repro:
+        t0 = time.perf_counter()
+        again = run(Path(a.data)).sha256()
+        first = result.sha256()
+        differs = [name for name in first if first[name] != again[name]]
+        repro = {"identical": not differs, "differs": differs, "second_run_sec": round(time.perf_counter() - t0, 3)}
 
-    summary(df)
-    print(f"Выгрузки записаны в {Path(a.out)}/ за {time.perf_counter() - t0:.1f} с; проверка схемы: OK")
+    report = build_report(result, a.data, a.out, repro)
+    write_report(report, out_dir)
+    print_summary(result, report)
+    print(f"Выгрузки и отчёт (run_report.md) записаны в {out_dir}/")
+    if repro is not None and not repro["identical"]:
+        sys.exit(4)
 
 
 if __name__ == "__main__":

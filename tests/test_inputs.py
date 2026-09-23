@@ -3,8 +3,6 @@
 Основная часть тестов идёт на синтетическом мини-графе и не требует архива данных.
 """
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -13,28 +11,12 @@ from money_graph.features import build_features
 from money_graph.graph import build_graph, edge_table
 from money_graph.io import InputSchemaError, load, validate_inputs
 
-DATA = Path(__file__).resolve().parents[1] / "data"
-
-# мини-обход: seed 1 → 2 → 3 → 4 → 5 (4-е колено), 2 → 1 — обратное ребро, 6 — seed без рёбер
-A, B, Cc, D, E, F = 1, 2, 3, 4, 5, 6
+from tests._mini import A, B, Cc, D, E, F, DATA, mini_frames
 
 
 @pytest.fixture
 def raw():
-    nodes = pd.DataFrame({"gid": [A, B, Cc, D, E, F], "depth": [0, 1, 2, 3, 4, 0],
-                          "is_seed": [True, False, False, False, False, True]})
-    tx = pd.DataFrame({
-        "src": [A, A, B, B, Cc, D],
-        "dst": [B, B, Cc, A, D, E],
-        "date": ["2026-07-01", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-05", "2026-07-06"],
-        "sum_kzt": [10_000.0, 10_000.0, 15_000.0, 5_000.0, 15_000.0, 14_000.0],
-    })
-    edges = (tx.groupby(["src", "dst"]).agg(sum_kzt=("sum_kzt", "sum"), n_tx=("sum_kzt", "size"))
-             .reset_index())
-    edges["depth"] = edges.src.map(nodes.set_index("gid").depth) + 1
-    tx["date"] = pd.to_datetime(tx.date).dt.date      # как в parquet: object с datetime.date
-    edges["depth"] = edges.depth.astype("int8")
-    return edges, nodes, tx
+    return mini_frames()
 
 
 def _fails(edges, nodes, tx, expected: str):
