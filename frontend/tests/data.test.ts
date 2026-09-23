@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { loadData } from '../src/data'
-import { filterNodes, nodeNeighbors } from '../src/filters'
+import { filterNodes, findNodeByGid, nodeNeighbors } from '../src/filters'
 import { parseCsv } from '../src/csv'
 import type { FilterState, NodeRecord } from '../src/types'
 
@@ -19,6 +19,7 @@ describe('CSV and graph data contracts', () => {
     expect(filterNodes(nodes, { ...base, search: '200000000000000001' }, new Set(['100000003684369100']))).toHaveLength(1)
     expect(filterNodes(nodes, { ...base, role: 'terminal' }, new Set())).toEqual([nodes[1]])
     expect(filterNodes(nodes, { ...base, topOnly: true }, new Set(['100000003684369100']))).toEqual([nodes[0]])
+    expect(findNodeByGid(nodes, '200000000000000001')?.gid).toBe('200000000000000001')
   })
 
   it('separates incoming and outgoing direction for reciprocal edges', () => {
@@ -37,8 +38,16 @@ describe('CSV and graph data contracts', () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({ ok: true, text: () => Promise.resolve(fixture.get(url.split('/').pop()!) ?? '') })))
     const data = await loadData('/out')
     expect(data.nodes[0].gid).toBe('100000003684369100')
-    expect(data.topNodes[0].priority_why).toBe('priority why')
+    expect(data.nodes[0].priority_why).toBe('priority why')
     expect(data.edges[0].src).toBe('100000003684369100')
+    vi.unstubAllGlobals()
+  })
+
+  it('reports missing required output columns', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
+      ok: true, text: () => Promise.resolve(url.endsWith('nodes_roles.csv') ? 'gid\n1\n' : 'x\ny\n'),
+    })))
+    await expect(loadData('/out')).rejects.toThrow('nodes_roles.csv: отсутствуют обязательные колонки')
     vi.unstubAllGlobals()
   })
 })

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import GraphCanvas from './GraphCanvas'
 import { DataLoadError, loadData } from './data'
-import { capGraph, filterNodes, nodeNeighbors } from './filters'
+import { capGraph, filterNodes, findNodeByGid, nodeNeighbors } from './filters'
 import { ROLE_COLORS, ROLES, type FilterState, type GraphData, type NodeRecord } from './types'
 
 const initialFilters: FilterState = { search: '', role: 'all', cluster: 'all', depth: 'all', seed: 'all', topOnly: false, limit: 160 }
@@ -35,6 +35,11 @@ export default function App() {
   const hovered = hoveredId ? byId.get(hoveredId) : undefined
 
   const setFilter = <K extends keyof FilterState>(key: K, value: FilterState[K]) => setFilters((current) => ({ ...current, [key]: value }))
+  const updateSearch = (value: string) => {
+    setFilter('search', value)
+    const match = data ? findNodeByGid(data.nodes, value) : undefined
+    if (match) setSelectedId(match.gid)
+  }
   const clearFilters = () => { setFilters(initialFilters); setSelectedId(undefined) }
   const stats = data ? { nodes: data.nodes.length, edges: data.edges.length, clusters: data.clusters.length, seeds: data.nodes.filter((node) => node.is_seed).length } : { nodes: 0, edges: 0, clusters: 0, seeds: 0 }
 
@@ -51,7 +56,7 @@ export default function App() {
         <section className="workspace">
           <aside className="sidebar panel">
             <div className="panel-heading"><div><p className="eyebrow">СЕГМЕНТ</p><h2>Фильтры</h2></div><button className="reset-button" onClick={clearFilters}>Сбросить</button></div>
-            <label className="field-label" htmlFor="search">Поиск по GID</label><div className="search-wrap"><span>⌕</span><input id="search" value={filters.search} onChange={(event) => setFilter('search', event.target.value)} placeholder="например, 100000..." /></div>
+            <label className="field-label" htmlFor="search">Поиск по GID</label><div className="search-wrap"><span>⌕</span><input id="search" value={filters.search} onChange={(event) => updateSearch(event.target.value)} placeholder="например, 100000..." /></div>
             <label className="field-label" htmlFor="role">Роль</label><select id="role" value={filters.role} onChange={(event) => setFilter('role', event.target.value)}><option value="all">Все роли</option>{ROLES.map((role) => <option key={role} value={role}>{role}</option>)}</select>
             <label className="field-label" htmlFor="cluster">Кластер</label><select id="cluster" value={filters.cluster} onChange={(event) => setFilter('cluster', event.target.value)}><option value="all">Все кластеры</option>{data.clusters.map((cluster) => <option key={cluster.cluster_id} value={cluster.cluster_id}>Кластер {cluster.cluster_id} · {cluster.n_nodes} узлов</option>)}</select>
             <label className="field-label" htmlFor="depth">Глубина обхода</label><select id="depth" value={filters.depth} onChange={(event) => setFilter('depth', event.target.value)}><option value="all">Все уровни</option>{[0, 1, 2, 3, 4].map((depth) => <option key={depth} value={depth}>Колено {depth}</option>)}</select>
@@ -70,7 +75,7 @@ export default function App() {
 }
 
 function NodeInspector({ node, incoming, outgoing, onClose }: { node: NodeRecord, incoming: { src: string, sum_kzt: number, n_tx: number }[], outgoing: { dst: string, sum_kzt: number, n_tx: number }[], onClose: () => void }) {
-  return <div className="node-inspector"><div className="inspector-header"><div><p className="eyebrow">NODE PROFILE</p><h2>{node.gid}</h2></div><button className="close-button" onClick={onClose} aria-label="Закрыть карточку">×</button></div><div className="role-banner" style={{ borderColor: ROLE_COLORS[node.role] ?? ROLE_COLORS.peripheral }}><span className="role-dot" style={{ background: ROLE_COLORS[node.role] }} /><strong>{node.role}</strong><span>{node.is_seed ? 'seed' : `depth ${node.depth}`}</span></div><div className="score-grid"><div><small>ROLE SCORE</small><strong>{node.role_score.toFixed(2)}</strong></div><div><small>PRIORITY</small><strong className="gold-text">{node.priority_score.toFixed(3)}</strong></div><div><small>CLUSTER</small><strong>{node.cluster_id}</strong></div><div><small>DEPTH</small><strong>{node.depth}</strong></div></div><div className="evidence"><p className="eyebrow">ОБОСНОВАНИЕ</p><p>{node.evidence}</p>{node.boundary_depth4 && <div className="boundary-warning">⚠ 4-е колено: исходящие переводы не наблюдаются после границы обхода.</div>}</div><div className="why-block"><p className="eyebrow">ПОЧЕМУ В ПРИОРИТЕТЕ</p><p>{node.priority_why}</p></div><FlowList title="ПОЛУЧАЕТ ОТ" rows={incoming.slice(0, 5).map((edge) => ({ gid: edge.src, sum: edge.sum_kzt, n: edge.n_tx }))} empty="Входящие связи не найдены" /><FlowList title="ОТПРАВЛЯЕТ" rows={outgoing.slice(0, 5).map((edge) => ({ gid: edge.dst, sum: edge.sum_kzt, n: edge.n_tx }))} empty="Исходящие связи не найдены" /></div>
+  return <div className="node-inspector" role="region" aria-label={`Карточка узла ${node.gid}`}><div className="inspector-header"><div><p className="eyebrow">NODE PROFILE</p><h2>{node.gid}</h2></div><button className="close-button" onClick={onClose} aria-label="Закрыть карточку">×</button></div><div className="role-banner" style={{ borderColor: ROLE_COLORS[node.role] ?? ROLE_COLORS.peripheral }}><span className="role-dot" style={{ background: ROLE_COLORS[node.role] }} /><strong>{node.role}</strong><span>{node.is_seed ? 'seed' : `depth ${node.depth}`}</span></div><div className="score-grid"><div><small>ROLE SCORE</small><strong>{node.role_score.toFixed(2)}</strong></div><div><small>PRIORITY</small><strong className="gold-text">{node.priority_score.toFixed(3)}</strong></div><div><small>CLUSTER</small><strong>{node.cluster_id}</strong></div><div><small>DEPTH</small><strong>{node.depth}</strong></div></div><div className="evidence"><p className="eyebrow">ОБОСНОВАНИЕ</p><p>{node.evidence}</p>{node.boundary_depth4 && <div className="boundary-warning">⚠ 4-е колено: исходящие переводы не наблюдаются после границы обхода.</div>}</div><div className="why-block"><p className="eyebrow">ПОЧЕМУ В ПРИОРИТЕТЕ</p><p>{node.priority_why}</p></div><details className="accessible-summary"><summary>Текстовая сводка для клавиатуры</summary><p>{node.gid}: роль {node.role}, приоритет {node.priority_score.toFixed(3)}. Входящих связей: {incoming.length}; исходящих: {outgoing.length}.</p></details><FlowList title="ПОЛУЧАЕТ ОТ" rows={incoming.map((edge) => ({ gid: edge.src, sum: edge.sum_kzt, n: edge.n_tx }))} empty="Входящие связи не найдены" /><FlowList title="ОТПРАВЛЯЕТ" rows={outgoing.map((edge) => ({ gid: edge.dst, sum: edge.sum_kzt, n: edge.n_tx }))} empty="Исходящие связи не найдены" /></div>
 }
 
-function FlowList({ title, rows, empty }: { title: string, rows: { gid: string, sum: number, n: number }[], empty: string }) { return <div className="flow-list"><p className="eyebrow">{title}</p>{rows.length ? rows.map((row) => <div className="flow-row" key={row.gid}><span className="flow-gid">{row.gid}</span><span>{money(row.sum)} KZT <small>· {row.n} tx</small></span></div>) : <p className="muted small">{empty}</p>}</div> }
+function FlowList({ title, rows, empty }: { title: string, rows: { gid: string, sum: number, n: number }[], empty: string }) { const shown = rows.slice(0, 5); return <div className="flow-list"><p className="eyebrow">{title} · {rows.length ? `${shown.length} из ${rows.length}` : '0'}</p>{shown.length ? shown.map((row) => <div className="flow-row" key={row.gid}><span className="flow-gid">{row.gid}</span><span>{money(row.sum)} KZT <small>· {row.n} tx</small></span></div>) : <p className="muted small">{empty}</p>}</div> }

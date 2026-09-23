@@ -25,10 +25,21 @@ function edge(row: Record<string, string>): EdgeRecord {
   return { ...row, src: row.src.trim(), dst: row.dst.trim(), sum_kzt: numberValue(row.sum_kzt), n_tx: numberValue(row.n_tx) }
 }
 
+const REQUIRED_COLUMNS: Record<string, string[]> = {
+  'nodes_roles.csv': ['gid', 'role', 'role_score', 'cluster_id', 'priority_score', 'evidence'],
+  'clusters.csv': ['cluster_id', 'n_nodes', 'n_seed', 'sum_kzt_internal', 'top_gids', 'hypothesis'],
+  'top_nodes.csv': ['rank', 'gid', 'role', 'priority_score', 'why'],
+  'edge_table.csv': ['src', 'dst', 'sum_kzt', 'n_tx'],
+}
+
 async function getCsv(base: string, file: string): Promise<Record<string, string>[]> {
   const response = await fetch(`${base.replace(/\/$/, '')}/${file}`)
   if (!response.ok) throw new DataLoadError(`${file}: сервер вернул ${response.status}`)
-  return parseCsv(await response.text())
+  const rows = parseCsv(await response.text())
+  if (!rows.length) throw new DataLoadError(`${file}: пустой файл`)
+  const missing = REQUIRED_COLUMNS[file].filter((column) => !(column in rows[0]))
+  if (missing.length) throw new DataLoadError(`${file}: отсутствуют обязательные колонки: ${missing.join(', ')}`)
+  return rows
 }
 
 export async function loadData(base = '/out'): Promise<GraphData> {
@@ -36,7 +47,6 @@ export async function loadData(base = '/out'): Promise<GraphData> {
     getCsv(base, 'nodes_roles.csv'), getCsv(base, 'clusters.csv'),
     getCsv(base, 'top_nodes.csv'), getCsv(base, 'edge_table.csv'),
   ])
-  if (!nodesRows.length) throw new DataLoadError('nodes_roles.csv пустой')
   const nodes = nodesRows.map(node)
   const nodeIds = new Set(nodes.map((item) => item.gid))
   const edges = edgeRows.map(edge).filter((item) => nodeIds.has(item.src) && nodeIds.has(item.dst))
@@ -50,5 +60,9 @@ export async function loadData(base = '/out'): Promise<GraphData> {
     priority_score: numberValue(row.priority_score), why: row.why || '',
     priority_why: row.priority_why || row.why || '',
   }))
-  return { nodes, edges, clusters, topNodes, source: base }
+  const priorityWhy = new Map(topNodes.map((item) => [item.gid, item.why || item.priority_why]))
+  return {
+    nodes: nodes.map((item) => ({ ...item, priority_why: priorityWhy.get(item.gid) || item.priority_why })),
+    edges, clusters, topNodes, source: base,
+  }
 }

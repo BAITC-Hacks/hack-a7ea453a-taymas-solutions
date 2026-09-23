@@ -14,6 +14,11 @@ export function filterNodes(nodes: NodeRecord[], filters: FilterState, topIds = 
   })
 }
 
+export function findNodeByGid(nodes: NodeRecord[], query: string): NodeRecord | undefined {
+  const gid = query.trim()
+  return gid ? nodes.find((node) => node.gid === gid) : undefined
+}
+
 export function capGraph(nodes: NodeRecord[], edges: EdgeRecord[], limit: number) {
   const visible = [...nodes].sort((a, b) => b.priority_score - a.priority_score || a.gid.localeCompare(b.gid)).slice(0, limit)
   const ids = new Set(visible.map((node) => node.gid))
