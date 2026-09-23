@@ -9,6 +9,10 @@ from analytics.clustering import load_inputs, run
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 
+# данные в репозиторий не коммитятся — без распакованного архива тесты пропускаются
+pytestmark = pytest.mark.skipif(not (DATA / "edges.parquet").exists(),
+                                reason="нет data/edges.parquet — распакуйте архив данных в ./data")
+
 
 @pytest.fixture(scope="module")
 def inputs():

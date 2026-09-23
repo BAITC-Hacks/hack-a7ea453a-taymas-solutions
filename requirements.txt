@@ -1,6 +1,6 @@
 pandas>=2.0
 pyarrow>=14.0
-networkx>=3.1
+networkx==3.6.1       # зафиксирован: от версии зависит Louvain, а значит и clusters.csv
 numpy>=1.24
 scipy>=1.10
 pytest>=8.0
