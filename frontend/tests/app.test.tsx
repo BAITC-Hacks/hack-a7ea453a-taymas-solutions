@@ -18,12 +18,14 @@ vi.mock('../src/data', async (importOriginal) => ({
   loadData: vi.fn(),
 }))
 vi.mock('../src/GraphCanvas', () => ({
-  default: ({ nodes, onSelect, highlightedGids, highlightedEdges, focusId, focusSequence, layoutFocusId }: {
+  default: ({ nodes, edges, onSelect, highlightedGids, highlightedEdges, focusId, focusSequence, layoutFocusId }: {
     nodes: NodeRecord[]; onSelect: (gid: string) => void; highlightedGids: string[];
+    edges: GraphData['edges'];
     highlightedEdges: string[]; focusId?: string; focusSequence?: number; layoutFocusId?: string;
   }) => (
     <div data-testid="graph" data-evidence={highlightedGids.join(',')} data-edges={highlightedEdges.join(',')}
-      data-focus={focusId} data-sequence={focusSequence} data-context={layoutFocusId}>
+      data-focus={focusId} data-sequence={focusSequence} data-context={layoutFocusId}
+      data-links={edges.map(edge => `${edge.src}:${edge.dst}`).join(',')}>
       {nodes.map((n) => (
         <button key={n.gid} onClick={() => onSelect(n.gid)}>
           graph {n.gid}
@@ -105,6 +107,20 @@ afterEach(async () => {
 async function render() {
   await act(async () => root.render(<App />))
 }
+async function search(gid: string) {
+  const input = container.querySelector<HTMLInputElement>('[aria-label="Поиск по GID"]')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, gid)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+async function choose(id: string, value: string) {
+  await act(async () => {
+    const select = container.querySelector<HTMLSelectElement>(`#${id}`)!
+    select.value = value
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+}
 
 describe('Investigation screen', () => {
   it('opens the first priority with evidence and its graph context', async () => {
@@ -172,21 +188,26 @@ describe('Investigation screen', () => {
     expect(graph().dataset.sequence).toBe('2')
     expect(askCopilot).toHaveBeenCalledTimes(1)
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Снять подсветку Copilot"]')!.click())
-    expect(graph().textContent).not.toContain(boundary)
+    expect(graph().textContent).toContain(boundary)
     expect(graph().dataset.evidence).toBe('')
+    await act(async () => button('Снять временное окружение').click())
+    expect(graph().textContent).not.toContain(boundary)
+    expect(role.value).toBe('coordinator')
   })
-  it('copilot navigation preserves the original neighbourhood and failed responses do not highlight evidence', async () => {
+  it('copilot navigation opens the requested neighborhood and failed responses do not change focus', async () => {
     await render()
     await act(async () => button('Почему этот узел в топе?').click())
     await act(async () => button('Разобрать вопрос').click())
     await act(async () => container.querySelector<HTMLButtonElement>(`.copilot [aria-label="Открыть узел ${boundary}"]`)!.click())
-    expect(container.querySelector<HTMLElement>('[data-testid="graph"]')?.dataset.context).toBe(first)
+    expect(container.querySelector<HTMLElement>('[data-testid="graph"]')?.dataset.context).toBe(boundary)
     await act(async () => button('AI Copilot').click())
     vi.mocked(askCopilot).mockRejectedValueOnce(new Error('Помощник занят'))
     await act(async () => button('Разобрать вопрос').click())
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('Помощник занят')
     expect(container.querySelector('.evidence-strip')).toBeNull()
     expect(container.querySelector<HTMLElement>('[data-testid="graph"]')?.dataset.evidence).toBe('')
+    expect(container.querySelector<HTMLElement>('[data-testid="graph"]')?.dataset.focus).toBe(boundary)
+    expect(container.querySelector<HTMLElement>('[data-testid="graph"]')?.dataset.sequence).toBe('1')
   })
   it('offers fixture recovery after a CSV loading error', async () => {
     vi.mocked(loadData).mockRejectedValueOnce(new Error('offline'))
@@ -215,5 +236,88 @@ describe('Investigation screen', () => {
     expect(input.value).toBe('')
     expect(container.querySelector('[data-testid="graph"]')?.textContent).not.toContain(boundary)
     expect(container.querySelector('[data-testid="graph"]')?.textContent).toContain(first)
+  })
+  it('exact lookup shows every directed neighbor beyond the limit and reports the temporary additions', async () => {
+    const neighbors = Array.from({ length: 100 }, (_, i) => node(`10000000000000${String(i).padStart(4, '0')}`))
+    const links = neighbors.map((n, i) => ({ src: i % 2 ? n.gid : boundary, dst: i % 2 ? boundary : n.gid, sum_kzt: 10, n_tx: 1 }))
+    vi.mocked(loadData).mockResolvedValueOnce({ ...data, nodes: [{ ...node(boundary), priority_score: 0 }, ...neighbors], edges: links, topNodes: [] })
+    await render()
+    await search(boundary)
+    const graph = container.querySelector<HTMLElement>('[data-testid="graph"]')!
+    expect(graph.querySelectorAll('button')).toHaveLength(101)
+    expect(graph.dataset.links?.split(',')).toHaveLength(100)
+    expect(graph.dataset.focus).toBe(boundary)
+    expect(container.querySelector(`[aria-label="Карточка узла ${boundary}"]`)).not.toBeNull()
+    expect(container.querySelector('.navigation-context')?.textContent).toContain('11 сверх лимита')
+    await act(async () => button('Снять временное окружение').click())
+    expect(graph.querySelectorAll('button')).toHaveLength(90)
+    expect(graph.textContent).not.toContain(boundary)
+  })
+  it('top, neighbor and exact lookup retain all facets and reveal nodes excluded by them', async () => {
+    await render()
+    await choose('role', 'coordinator')
+    await choose('cluster', '5')
+    await choose('depth', '0')
+    await choose('seed', 'seed')
+    await act(async () => button('Верхние приоритеты').click())
+    await act(async () => container.querySelectorAll<HTMLElement>('.table-row')[1].click())
+    const checkFacets = () => {
+      expect(container.querySelector<HTMLSelectElement>('#role')?.value).toBe('coordinator')
+      expect(container.querySelector<HTMLSelectElement>('#cluster')?.value).toBe('5')
+      expect(container.querySelector<HTMLSelectElement>('#depth')?.value).toBe('0')
+      expect(container.querySelector<HTMLSelectElement>('#seed')?.value).toBe('seed')
+      expect(button('Верхние приоритеты').getAttribute('aria-pressed')).toBe('true')
+    }
+    checkFacets()
+    expect(container.querySelector('.navigation-context')?.textContent).toContain('2 вне фильтров')
+    await act(async () => container.querySelector<HTMLButtonElement>(`.flow-list [aria-label="Открыть узел ${first}"]`)!.click())
+    checkFacets()
+    expect(container.querySelector<HTMLElement>('[data-testid="graph"]')?.dataset.focus).toBe(first)
+    expect(container.querySelector(`[aria-label="Карточка узла ${first}"]`)).not.toBeNull()
+    await search(boundary)
+    checkFacets()
+    expect(container.querySelector<HTMLElement>('[data-testid="graph"]')?.dataset.links).toBe(`${first}:${boundary}`)
+    await act(async () => button('Снять временное окружение').click())
+    checkFacets()
+    expect(container.querySelector('[data-testid="graph"]')?.textContent).toBe('')
+  })
+  it('unknown GIDs are compared as exact strings and do not leave the previous card or focus', async () => {
+    await render()
+    await search(first.slice(0, -1) + '1')
+    expect(container.querySelector('[data-testid="graph"]')?.textContent).toBe('')
+    expect(container.querySelector<HTMLElement>('[data-testid="graph"]')?.dataset.focus).toBeUndefined()
+    expect(container.querySelector('.node-inspector')).toBeNull()
+    expect(container.textContent).toContain('Точный GID не найден')
+  })
+  it('finds an isolated seed outside the top list without inventing flows', async () => {
+    const isolated = '100000008165763101'
+    vi.mocked(loadData).mockResolvedValueOnce({ ...data, nodes: [...data.nodes, { ...node(isolated), is_seed: true, depth: 0 }] })
+    await render()
+    await search(isolated)
+    const graph = container.querySelector<HTMLElement>('[data-testid="graph"]')!
+    expect(graph.querySelectorAll('button')).toHaveLength(1)
+    expect(graph.dataset.links).toBe('')
+    expect(graph.dataset.focus).toBe(isolated)
+    expect(container.querySelector(`[aria-label="Карточка узла ${isolated}"]`)).not.toBeNull()
+    expect(container.querySelectorAll('.flow-empty')).toHaveLength(2)
+    expect(container.querySelector('.flow-row')).toBeNull()
+  })
+  it('Copilot navigation includes uncited neighbors and an answer does not issue another focus command', async () => {
+    const tail = '100000008165763101'
+    vi.mocked(loadData).mockResolvedValueOnce({ ...data, nodes: [...data.nodes, node(tail)], edges: [...data.edges, { src: boundary, dst: tail, sum_kzt: 10, n_tx: 1 }] })
+    await render()
+    await choose('role', 'coordinator')
+    await act(async () => button('Почему этот узел в топе?').click())
+    await act(async () => button('Разобрать вопрос').click())
+    await act(async () => container.querySelector<HTMLButtonElement>(`.copilot [aria-label="Открыть узел ${boundary}"]`)!.click())
+    const graph = container.querySelector<HTMLElement>('[data-testid="graph"]')!
+    expect(graph.dataset.focus).toBe(boundary)
+    expect(graph.dataset.sequence).toBe('1')
+    expect(graph.dataset.context).toBe(boundary)
+    expect(graph.dataset.links).toBe(`${first}:${boundary},${boundary}:${tail}`)
+    await act(async () => button('AI Copilot').click())
+    await act(async () => button('Разобрать вопрос').click())
+    expect(graph.dataset.sequence).toBe('1')
+    expect(graph.dataset.context).toBe(boundary)
   })
 })
