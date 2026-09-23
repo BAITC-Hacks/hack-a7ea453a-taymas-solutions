@@ -33,6 +33,8 @@ python scripts/prepare_submission.py --data /absolute/path/to/data --dest /absol
    приоритетный transit, крупнейший видимый вход у depth=4. При равенствах
    используется точный числовой gid, а в JSON/Markdown он остаётся строкой.
 5. `npm ci --ignore-scripts`, frontend tests и production build.
+   `MONEY_GRAPH_TEST_OUT` указывает на свежие CSV снимка: проверка реальных
+   выгрузок PAN-64 выполняется, а не пропускается из-за отсутствия переменной.
 
 У каждого процесса лимит 600 с; в логе сохраняются команда, результат и время.
 Любая ошибка/пропуск обязательного шага даёт ненулевой exit code, отчёт FAILED

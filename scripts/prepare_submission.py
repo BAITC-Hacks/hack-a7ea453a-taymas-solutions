@@ -261,6 +261,7 @@ def build(args) -> int:
             snapshot(repo, commit, work)
             if digest(work / 'scripts/prepare_submission.py') != report['runner_sha256']:
                 raise ValueError('Run the committed prepare_submission.py version for the selected ref')
+            env['MONEY_GRAPH_TEST_OUT'] = str(work / 'out')
             (work / 'data').mkdir()
             for name in INPUT_FILES:
                 shutil.copyfile(data / name, work / 'data' / name)
