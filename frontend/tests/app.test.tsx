@@ -83,6 +83,7 @@ const button = (text: string) =>
 beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('matchMedia', () => ({ matches: true }))
+  vi.stubGlobal('scrollTo', vi.fn())
   Element.prototype.scrollIntoView = vi.fn()
   vi.mocked(loadData).mockResolvedValue(data)
   vi.mocked(copilotStatus).mockResolvedValue({ ready: true, nvidia_available: false })
@@ -134,12 +135,18 @@ describe('Investigation screen', () => {
     await act(async () => button('Почему этот узел в топе?').click())
     const question = container.querySelector<HTMLTextAreaElement>('#copilot-question')!
     expect(question.value).toBe('Почему этот узел в топе?')
+    await act(async () => button('Режим фокуса').click())
+    expect(container.querySelector('.focus-mode')).not.toBeNull()
+    expect(container.querySelector('#copilot-question')).toBe(question)
     await act(async () => button('Обзор клиента').click())
     expect(container.querySelector(`[aria-label="Карточка узла ${first}"]`)).not.toBeNull()
     await act(async () => button('AI Copilot').click())
     expect(container.querySelector('#copilot-question')).toBe(question)
     expect(question.value).toBe('Почему этот узел в топе?')
     expect(container.querySelector('.copilot-chips')?.textContent).toContain(first)
+    await act(async () => container.querySelector('#copilot-tab')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })))
+    expect(document.activeElement?.id).toBe('profile-tab')
+    expect(container.querySelector('#profile-panel')?.hasAttribute('hidden')).toBe(false)
   })
   it('pins evidence beyond filters and navigates repeatedly without losing the answer or filters', async () => {
     await render()

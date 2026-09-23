@@ -81,6 +81,20 @@
 .copilot-slot .copilot-warnings p { color: var(--gold); font-size: 11px; }
 .copilot-slot .copilot-audit,
 .copilot-slot .copilot-disclaimer { color: var(--faint); border-color: var(--line); font-size: 10px; }
+.copilot-slot .data-request-plan { color: var(--soft); background: var(--surface); border-color: var(--line); border-radius: 8px; font-size: 12px; }
+.copilot-slot .data-request-plan > summary { color: var(--accent); padding: 12px; }
+.copilot-slot .data-request-plan > summary span { color: var(--muted); }
+.copilot-slot .data-request-intro { color: var(--muted); font-size: 11px; }
+.copilot-slot .data-request-target button { color: var(--accent); font-family: var(--font-mono); }
+.copilot-slot .data-request-item { border-color: var(--line); }
+.copilot-slot .data-request-item h3 { color: var(--text); font-size: 13px; }
+.copilot-slot .data-request-note { color: var(--gold); border-color: var(--gold); }
+.copilot-slot .data-request-action { background: var(--accent-dim); color: var(--soft); border-radius: 6px; }
+.copilot-slot .data-request-action > strong { color: var(--accent); }
+.copilot-slot .data-request-plan details summary { color: var(--soft); font-size: 11px; }
+.copilot-slot .data-request-sources { color: var(--muted); font-size: 10px; }
+.copilot-slot .data-request-sources span { font-family: var(--font-mono); }
+.copilot-slot .data-request-coverage { border-color: var(--line); }
 .copilot-tab-badge { display: grid; place-items: center; min-width: 17px; height: 17px; border-radius: 5px; background: var(--accent-dim); color: var(--accent); font: 10px var(--font-mono); }
 .inspector-tabs button[aria-selected='true'] { color: var(--accent); }
 .inspector-tabs button[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); }

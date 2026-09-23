@@ -259,7 +259,7 @@ export default function App() {
                     >
                       <Icon name="spark" size={15} />
                       AI Copilot
-                      <span className="copilot-tab-badge">{copilotAnswer ? '1' : '✦'}</span>
+                      <span className="copilot-tab-badge" aria-hidden="true">{copilotAnswer ? '1' : '✦'}</span>
                     </button>
                   </div>
                   <div

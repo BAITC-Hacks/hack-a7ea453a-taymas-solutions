@@ -55,6 +55,8 @@ export default function GraphCanvas({
   selectionRef.current = selectedId
   const modeRef = useRef(colorMode)
   modeRef.current = colorMode
+  const focusRef = useRef(focusId)
+  focusRef.current = focusId
 
   useEffect(() => {
     if (!host.current) return
@@ -206,6 +208,9 @@ export default function GraphCanvas({
     cy.on('mouseout', 'node', () => onHover(undefined))
     const observer = new ResizeObserver(() => {
       cy.resize()
+      const focus = focusRef.current ? cy.getElementById(focusRef.current) : undefined
+      if (focus?.length) cy.center(focus)
+      else cy.fit(cy.elements(), layoutFocusId ? 58 : 50)
     })
     observer.observe(host.current)
     return () => {
