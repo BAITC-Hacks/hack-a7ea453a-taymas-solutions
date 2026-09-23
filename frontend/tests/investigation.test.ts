@@ -51,11 +51,15 @@ describe('Investigation graph navigation', () => {
     expect(view.nodes.map((n) => n.gid).sort()).toEqual([a, b, c].sort())
     expect(view.edges).toHaveLength(3)
     expect(view.focused).toBe(true)
+    expect(view.outsideFilterCount).toBe(3)
+    expect(view.outsideLimitCount).toBe(0)
   })
-  it('keeps a low-priority focused node when its neighborhood exceeds the cap', () => {
+  it('keeps every observed neighbor and directed edge beyond the cap', () => {
     const view = buildGraphView(nodes, edges, { ...filters, limit: 2 }, new Set(), b, true)
     expect(view.nodes.map((n) => n.gid)).toContain(b)
-    expect(view.nodes).toHaveLength(2)
+    expect(view.nodes).toHaveLength(3)
+    expect(view.edges).toEqual(edges)
+    expect(view.outsideLimitCount).toBe(1)
     expect(view.total).toBe(3)
     expect(
       view.edges.every(

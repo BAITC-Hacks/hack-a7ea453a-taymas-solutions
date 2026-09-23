@@ -209,7 +209,9 @@ export default function GraphCanvas({
     const observer = new ResizeObserver(() => {
       cy.resize()
       const focus = focusRef.current ? cy.getElementById(focusRef.current) : undefined
-      if (focus?.length) cy.center(focus)
+      // Preserve the complete visible neighborhood, including asymmetric flows.
+      // Centering only the client after fit moves distant neighbors off-canvas.
+      if (focus?.length) cy.fit(focus.closedNeighborhood(), 58)
       else cy.fit(cy.elements(), layoutFocusId ? 58 : 50)
     })
     observer.observe(host.current)
@@ -240,8 +242,11 @@ export default function GraphCanvas({
     if (node.empty()) return
     cy.stop()
     const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 250
-    cy.animate({ center: { eles: node }, zoom: Math.max(cy.zoom(), 1.2), duration })
-  }, [focusId, focusSequence, nodes, edges, layoutFocusId])
+    // A fixed zoom cropped large neighborhoods after explicit GID navigation.
+    // Fit the observed links as well as the selected client; only navigation
+    // issues a camera command, not a new Copilot answer or highlight update.
+    cy.animate({ fit: { eles: node.closedNeighborhood(), padding: 58 }, duration })
+  }, [focusId, focusSequence])
   useEffect(() => {
     if (!cyRef.current || !host.current) return
     const tokens = getComputedStyle(host.current)

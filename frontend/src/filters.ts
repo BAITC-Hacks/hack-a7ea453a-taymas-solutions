@@ -65,7 +65,7 @@ export function isBoundaryNode(node: NodeRecord): boolean {
   return node.boundary_depth4 || node.depth >= 4
 }
 
-/** A focused client must remain visible, even when it is below the node cap. */
+/** Explicit navigation shows the complete observed one-hop context, beyond facets and cap. */
 export function buildGraphView(
   nodes: NodeRecord[],
   edges: EdgeRecord[],
@@ -78,17 +78,30 @@ export function buildGraphView(
   const exact = findNodeByGid(nodes, filters.search)
   // Exact GID lookup intentionally opens its context independently of facet filters.
   const focus = exact ?? (neighborsOnly ? selected : undefined)
-  let candidates = filterNodes(nodes, filters, topIds)
+  const candidates = filterNodes(nodes, filters, topIds)
   if (focus) {
     const ids = new Set([focus.gid])
     edges.forEach((edge) => {
       if (edge.src === focus.gid) ids.add(edge.dst)
       if (edge.dst === focus.gid) ids.add(edge.src)
     })
-    candidates = nodes.filter((node) => ids.has(node.gid))
+    const context = nodes.filter((node) => ids.has(node.gid))
+    // Search is a navigation query, not a facet that excludes every neighbour.
+    const eligible = filterNodes(nodes, { ...filters, search: '' }, topIds)
+    const eligibleIds = new Set(eligible.map((node) => node.gid))
+    const cappedIds = new Set(capGraph(eligible, edges, filters.limit).nodes.map((node) => node.gid))
+    return {
+      nodes: context,
+      edges: edges.filter((edge) => ids.has(edge.src) && ids.has(edge.dst)),
+      total: context.length,
+      focused: true,
+      contextId: focus.gid,
+      outsideFilterCount: context.filter((node) => !eligibleIds.has(node.gid)).length,
+      outsideLimitCount: context.filter((node) => eligibleIds.has(node.gid) && !cappedIds.has(node.gid)).length,
+    }
   }
   const graph = capGraph(candidates, edges, filters.limit)
-  const pinned = focus ?? selected
+  const pinned = selected
   // Do not reintroduce a selection excluded by the current filters.
   if (
     pinned &&
@@ -99,5 +112,6 @@ export function buildGraphView(
     const ids = new Set(graph.nodes.map((node) => node.gid))
     graph.edges = edges.filter((edge) => ids.has(edge.src) && ids.has(edge.dst))
   }
-  return { ...graph, total: candidates.length, focused: Boolean(focus), contextId: focus?.gid }
+  return { ...graph, total: candidates.length, focused: false, contextId: undefined,
+    outsideFilterCount: 0, outsideLimitCount: 0 }
 }
