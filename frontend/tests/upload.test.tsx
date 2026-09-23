@@ -29,6 +29,8 @@ function mockApi(initial: ReturnType<typeof active> = active(), next: DatasetJob
   return fetch
 }
 beforeEach(() => {
+  vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
+  Element.prototype.scrollIntoView = vi.fn()
   vi.mocked(loadData).mockImplementation(async source => ({ ...data, source: source! }))
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.useRealTimers() })
