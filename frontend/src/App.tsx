@@ -1,17 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import GraphCanvas from './GraphCanvas'
+import { DataLoadError, loadData } from './data'
+import { buildGraphView, filterNodes, findNodeByGid } from './filters'
+import type { FilterState, GraphData } from './types'
+import { Header } from './components/Header'
+import { FilterPanel } from './components/FilterPanel'
+import { GraphPanel } from './components/GraphPanel'
+import { EmptyInspector, NodeInspector } from './components/NodeInspector'
+import { PriorityTable } from './components/PriorityTable'
+import { CopilotSlot } from './components/CopilotSlot'
+import { ErrorState, LoadingState } from './components/States'
+import { Icon } from './components/Icon'
 import CopilotPanel from './copilot/CopilotPanel'
 import type { CopilotAnswer } from './copilot/api'
 import { answerHighlights, includeEvidence } from './copilot/graph'
-import { DataLoadError, loadData } from './data'
-import { capGraph, filterNodes, findNodeByGid, isBoundaryNode, nodeNeighbors, summarizeNodeFlows } from './filters'
-import { ROLE_COLORS, ROLES, type FilterState, type GraphData, type NodeRecord } from './types'
 
-const initialFilters: FilterState = { search: '', role: 'all', cluster: 'all', depth: 'all', seed: 'all', topOnly: false, limit: 160 }
-const fmt = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 })
-const money = (value: number) => value >= 1_000_000 ? `${(value / 1_000_000).toFixed(1)} млн` : `${fmt.format(value / 1000)} тыс.`
-
-function Stat({ label, value, accent = '' }: { label: string, value: string | number, accent?: string }) { return <div className="stat"><span>{label}</span><strong className={accent}>{value}</strong></div> }
+const initialFilters: FilterState = {
+  search: '',
+  role: 'all',
+  cluster: 'all',
+  depth: 'all',
+  seed: 'all',
+  topOnly: false,
+  limit: 90,
+}
 
 export default function App() {
   const [data, setData] = useState<GraphData | null>(null)
@@ -20,86 +31,266 @@ export default function App() {
   const [filters, setFilters] = useState(initialFilters)
   const [selectedId, setSelectedId] = useState<string>()
   const [hoveredId, setHoveredId] = useState<string>()
-  const [railTab, setRailTab] = useState<'copilot' | 'node'>('copilot')
+  const [neighborsOnly, setNeighborsOnly] = useState(true)
+  const [neighborhoodId, setNeighborhoodId] = useState<string>()
+  const [inspectorTab, setInspectorTab] = useState<'profile' | 'copilot'>('copilot')
   const [copilotAnswer, setCopilotAnswer] = useState<CopilotAnswer | null>(null)
   const [focused, setFocused] = useState<{ gid: string; sequence: number }>()
   const navigateFromCopilot = useCallback((gid: string) => {
-    setSelectedId(gid); setFocused(previous => ({ gid, sequence: (previous?.sequence ?? 0) + 1 })); setRailTab('node')
+    setSelectedId(gid)
+    setFocused(previous => ({ gid, sequence: (previous?.sequence ?? 0) + 1 }))
+    setInspectorTab('profile')
   }, [])
-  const selectGraphNode = useCallback((gid: string) => { setSelectedId(gid); setRailTab('node') }, [])
   const receiveAnswer = useCallback((answer: CopilotAnswer | null) => {
-    setCopilotAnswer(answer); setFocused(undefined)
+    setCopilotAnswer(answer)
+    setFocused(undefined)
   }, [])
 
   const fetchData = useCallback(async (source = '/out') => {
-    setLoading(true); setError(undefined)
-    try { setData(await loadData(source)) }
-    catch (caught) { setData(null); setError(caught instanceof DataLoadError ? caught.message : 'Не удалось загрузить выгрузки') }
-    finally { setLoading(false) }
+    setLoading(true)
+    setError(undefined)
+    setFilters(initialFilters)
+    setNeighborsOnly(true)
+    setCopilotAnswer(null)
+    setFocused(undefined)
+    setHoveredId(undefined)
+    try {
+      const loaded = await loadData(source)
+      setData(loaded)
+      setSelectedId(loaded.topNodes[0]?.gid)
+      setNeighborhoodId(loaded.topNodes[0]?.gid)
+    } catch (caught) {
+      setData(null)
+      setError(caught instanceof DataLoadError ? caught.message : 'Не удалось загрузить выгрузки')
+    } finally {
+      setLoading(false)
+    }
   }, [])
-  useEffect(() => { void fetchData() }, [fetchData])
+  useEffect(() => {
+    void fetchData()
+  }, [fetchData])
 
-  const topIds = useMemo(() => new Set(data?.topNodes.map((node) => node.gid) ?? []), [data])
-  const filteredNodes = useMemo(() => data ? filterNodes(data.nodes, filters, topIds) : [], [data, filters, topIds])
-  const baseGraph = useMemo(() => data ? capGraph(filteredNodes, data.edges, filters.limit) : { nodes: [], edges: [] }, [data, filteredNodes, filters.limit])
+  const topIds = useMemo(() => new Set(data?.topNodes.map((n) => n.gid) ?? []), [data])
+  const filteredNodes = useMemo(
+    () => (data ? filterNodes(data.nodes, filters, topIds) : []),
+    [data, filters, topIds],
+  )
+  const graphFocusId = neighborsOnly ? neighborhoodId : undefined
+  const baseGraph = useMemo(
+    () =>
+      data
+        ? buildGraphView(data.nodes, data.edges, filters, topIds, graphFocusId, neighborsOnly)
+        : { nodes: [], edges: [], total: 0, focused: false },
+    [data, filters, topIds, graphFocusId, neighborsOnly],
+  )
   const highlights = useMemo(() => answerHighlights(copilotAnswer), [copilotAnswer])
-  const graph = useMemo(() => data ? includeEvidence(baseGraph, data, highlights.gids, focused?.gid) : { ...baseGraph, extraCount: 0 }, [baseGraph, data, highlights, focused])
-  const byId = useMemo(() => new Map(data?.nodes.map((node) => [node.gid, node]) ?? []), [data])
+  const graph = useMemo(() => data
+    ? { ...baseGraph, ...includeEvidence(baseGraph, data, highlights.gids, focused?.gid) }
+    : { ...baseGraph, extraCount: 0 }, [baseGraph, data, highlights, focused?.gid])
+  const byId = useMemo(() => new Map(data?.nodes.map((n) => [n.gid, n]) ?? []), [data])
   const selected = selectedId ? byId.get(selectedId) : undefined
-  const selectedNeighbors = selected && data ? nodeNeighbors(selected.gid, data.edges) : { incoming: [], outgoing: [] }
-  const selectedFlowSummary = selected && data ? summarizeNodeFlows(selected.gid, data.edges) : undefined
   const hovered = hoveredId ? byId.get(hoveredId) : undefined
-  const searchQuery = filters.search.trim()
-  const searchHasNoMatches = Boolean(searchQuery && filteredNodes.length === 0 && !selected)
+  const selectOnGraph = useCallback((gid: string) => {
+    setSelectedId(gid)
+    setInspectorTab('profile')
+  }, [])
 
-  const setFilter = <K extends keyof FilterState>(key: K, value: FilterState[K]) => setFilters((current) => ({ ...current, [key]: value }))
-  const updateSearch = (value: string) => {
-    setFilter('search', value)
-    const match = data ? findNodeByGid(data.nodes, value) : undefined
-    setSelectedId(match?.gid)
+  const setFilter = <K extends keyof FilterState>(key: K, value: FilterState[K]) => {
+    setFilters((current) => ({
+      ...current,
+      [key]: value,
+      search: key === 'limit' ? current.search : '',
+    }))
+    setNeighborsOnly(false)
+    setHoveredId(undefined)
+    setFocused(undefined)
+    if (key !== 'limit') setSelectedId(undefined)
   }
-  const clearFilters = () => { setFilters(initialFilters); setSelectedId(undefined) }
-  const stats = data ? { nodes: data.nodes.length, edges: data.edges.length, clusters: data.clusters.length, seeds: data.nodes.filter((node) => node.is_seed).length } : { nodes: 0, edges: 0, clusters: 0, seeds: 0 }
+  const updateSearch = (value: string) => {
+    setFilters((current) => ({ ...current, search: value }))
+    setNeighborsOnly(false)
+    setHoveredId(undefined)
+    setFocused(undefined)
+    setSelectedId(data ? findNodeByGid(data.nodes, value)?.gid : undefined)
+    setInspectorTab('profile')
+  }
+  const reset = () => {
+    setFilters(initialFilters)
+    setSelectedId(undefined)
+    setHoveredId(undefined)
+    setNeighborsOnly(false)
+    setFocused(undefined)
+  }
+  const focusNode = useCallback((gid: string) => {
+    setFilters((current) => ({ ...initialFilters, limit: current.limit }))
+    setSelectedId(gid)
+    setNeighborhoodId(gid)
+    setFocused(undefined)
+    setNeighborsOnly(true)
+    setHoveredId(undefined)
+    setInspectorTab('profile')
+    document.getElementById('network')?.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'instant'
+        : 'smooth',
+      block: 'start',
+    })
+  }, [])
+  const start = () => {
+    if (data?.topNodes[0]) focusNode(data.topNodes[0].gid)
+  }
+  const openCopilot = () => {
+    setInspectorTab('copilot')
+    document.getElementById('inspector')?.scrollIntoView({ block: 'nearest' })
+  }
 
-  return <div className="app-shell">
-    <header className="topbar">
-      <div className="brand"><div className="brand-mark">↗</div><div><p className="eyebrow">AML INVESTIGATION DESK · PAN-38</p><h1>Money Graph</h1></div></div>
-      <div className="header-status"><span className={`status-dot ${data ? 'live' : ''}`} /> {data ? 'локальная выгрузка' : 'ожидание данных'} <span className="source-path">{data?.source ?? '/out'}</span></div>
-    </header>
-    <main className="content">
-      {loading && <div className="state-card"><div className="spinner" /><h2>Загружаем граф</h2><p>Читаем четыре CSV из локальной папки out/</p></div>}
-      {!loading && error && <div className="state-card error-state"><div className="state-icon">!</div><h2>{error.includes('отсутствуют обязательные колонки') ? 'Ошибка схемы выгрузки' : error.includes('пустой файл') ? 'Пустая выгрузка' : 'Выгрузки не найдены'}</h2><p>{error}. Запустите Python-пайплайн, затем обновите страницу.</p><code>python -m money_graph --data data --out out</code><button className="secondary-button" onClick={() => void fetchData('/fixtures')}>Открыть демо-набор</button></div>}
-      {!loading && data && <>
-        <section className="stat-row"><Stat label="УЗЛОВ В СЕТИ" value={fmt.format(stats.nodes)} accent="mint" /><Stat label="СВЯЗЕЙ" value={fmt.format(stats.edges)} /><Stat label="КЛАСТЕРОВ" value={fmt.format(stats.clusters)} /><Stat label="SEED-КЛИЕНТОВ" value={fmt.format(stats.seeds)} accent="gold" /><div className="stat-note"><span className="pulse" /> {graph.nodes.length} на экране из {filteredNodes.length} после фильтров</div></section>
-        <section className="workspace">
-          <aside className="sidebar panel">
-            <div className="panel-heading"><div><p className="eyebrow">СЕГМЕНТ</p><h2>Фильтры</h2></div><button className="reset-button" onClick={clearFilters}>Сбросить</button></div>
-            <label className="field-label" htmlFor="search">Поиск по GID</label><div className="search-wrap"><span>⌕</span><input id="search" value={filters.search} onChange={(event) => updateSearch(event.target.value)} placeholder="например, 100000..." /></div>
-            <label className="field-label" htmlFor="role">Роль</label><select id="role" value={filters.role} onChange={(event) => setFilter('role', event.target.value)}><option value="all">Все роли</option>{ROLES.map((role) => <option key={role} value={role}>{role}</option>)}</select>
-            <label className="field-label" htmlFor="cluster">Кластер</label><select id="cluster" value={filters.cluster} onChange={(event) => setFilter('cluster', event.target.value)}><option value="all">Все кластеры</option>{data.clusters.map((cluster) => <option key={cluster.cluster_id} value={cluster.cluster_id}>Кластер {cluster.cluster_id} · {cluster.n_nodes} узлов</option>)}</select>
-            <label className="field-label" htmlFor="depth">Глубина обхода</label><select id="depth" value={filters.depth} onChange={(event) => setFilter('depth', event.target.value)}><option value="all">Все уровни</option>{[0, 1, 2, 3, 4].map((depth) => <option key={depth} value={depth}>Колено {depth}</option>)}</select>
-            <label className="field-label" htmlFor="seed">Статус клиента</label><select id="seed" value={filters.seed} onChange={(event) => setFilter('seed', event.target.value as FilterState['seed'])}><option value="all">Все клиенты</option><option value="seed">Только seed</option><option value="non-seed">Без seed</option></select>
-            <div className="toggle-row"><div><strong>Верхние приоритеты</strong><small>Только top_nodes.csv</small></div><button className={`toggle ${filters.topOnly ? 'on' : ''}`} aria-label="Включить верхние приоритеты" aria-pressed={filters.topOnly} onClick={() => setFilter('topOnly', !filters.topOnly)}><span /></button></div>
-            <label className="field-label" htmlFor="limit">Лимит узлов на графе <b>{filters.limit}</b></label><input className="range" id="limit" type="range" min="20" max="300" step="10" value={filters.limit} onChange={(event) => setFilter('limit', Number(event.target.value))} />
-            <div className="legend"><p className="field-label">Роли</p>{ROLES.map((role) => <div className="legend-item" key={role}><i style={{ background: ROLE_COLORS[role] }} /> <span>{role}</span></div>)}<div className="legend-item"><i className="seed-ring" /> <span>seed-клиент</span></div></div>
-          </aside>
-          <section className="graph-panel panel"><div className="graph-toolbar"><div><p className="eyebrow">ТРАНЗАКЦИОННАЯ СЕТЬ</p><h2>Направление потоков</h2></div><div className="graph-hint"><span className="arrow-key">→</span> стрелка показывает получателя</div></div>{(copilotAnswer || focused) && <div className="graph-evidence-note"><span>{copilotAnswer ? 'Факты помощника подсвечены' : 'Выбранный узел показан на графе'}{graph.extraCount ? ` · ещё ${graph.extraCount} узл. вне фильтров и лимита` : ''}</span><button type="button" onClick={() => { setCopilotAnswer(null); setFocused(undefined) }}>Убрать подсветку</button></div>}<div className="graph-wrap"><GraphCanvas nodes={graph.nodes} edges={graph.edges} selectedId={selectedId} focusId={focused?.gid} focusSequence={focused?.sequence} highlightedGids={highlights.gids} highlightedEdges={highlights.edges} onSelect={selectGraphNode} onHover={setHoveredId} />{hovered && <div className="hover-card"><strong>{hovered.gid}</strong><span>{hovered.role} · priority {hovered.priority_score.toFixed(2)}</span></div>}{!graph.nodes.length && <div className="empty-graph">{searchHasNoMatches ? `GID «${searchQuery}» не найден в текущей выгрузке` : 'По текущим фильтрам узлы не найдены'}</div>}</div><div className="graph-footer"><span>Кликните узел для подробностей</span><span>Колесо мыши — масштаб · drag — перемещение</span></div></section>
-          <aside className="inspector panel investigation-rail">
-            <div className="investigation-tabs" role="tablist" aria-label="Материалы расследования">
-              <button type="button" role="tab" id="copilot-tab" aria-selected={railTab === 'copilot'} aria-controls="copilot-view" onClick={() => setRailTab('copilot')}>Помощник</button>
-              <button type="button" role="tab" id="node-tab" aria-selected={railTab === 'node'} aria-controls="node-view" onClick={() => setRailTab('node')}>Карточка узла</button>
-            </div>
-            <div className="investigation-content" role="tabpanel" id="copilot-view" aria-labelledby="copilot-tab" hidden={railTab !== 'copilot'}><CopilotPanel key={data.source} data={data} selectedId={selectedId} onNavigate={navigateFromCopilot} onAnswer={receiveAnswer} /></div>
-            <div className="investigation-content inspector-content" role="tabpanel" id="node-view" aria-labelledby="node-tab" hidden={railTab !== 'node'}>{selected ? <NodeInspector node={selected} incoming={selectedNeighbors.incoming} outgoing={selectedNeighbors.outgoing} flowSummary={selectedFlowSummary!} onSelectNeighbor={setSelectedId} onClose={() => setSelectedId(undefined)} /> : <div className="inspector-empty"><div className="crosshair">⊹</div><h2>{searchHasNoMatches ? 'GID не найден' : 'Выберите узел'}</h2><p>{searchHasNoMatches ? `В выгрузке нет узла с GID «${searchQuery}». Проверьте значение или сбросьте поиск.` : 'Нажмите на точку графа, чтобы увидеть роль, evidence и денежные потоки.'}</p><div className="tip"><span>TIP</span> Используйте поиск по GID, если нужен конкретный клиент.</div></div>}</div></aside>
-        </section>
-        <section className="priority-panel panel"><div className="panel-heading"><div><p className="eyebrow">ПЕРВЫЕ СИГНАЛЫ</p><h2>Верхние приоритеты</h2></div><span className="muted">{data.topNodes.length} узлов из top_nodes.csv</span></div><div className="priority-table"><div className="table-head"><span>RANK</span><span>GID</span><span>ROLE</span><span>SCORE</span><span>ПОЧЕМУ</span></div>{data.topNodes.slice(0, 8).map((item) => <button className="table-row" key={item.gid} onClick={() => navigateFromCopilot(item.gid)}><span className="rank">{String(item.rank).padStart(2, '0')}</span><span className="gid">{item.gid}</span><span className="role-pill" style={{ color: ROLE_COLORS[item.role] }}>{item.role}</span><span className="score">{item.priority_score.toFixed(3)}</span><span className="why">{item.priority_why || item.why}</span></button>)}</div></section>
-      </>}
-    </main>
-  </div>
+  return (
+    <div className="app-shell">
+      <nav className="nav-rail" aria-label="Навигация по рабочему пространству">
+        <a className="rail-logo" href="#network" title="Taymas">
+          T<span>↗</span>
+        </a>
+        <a className="rail-link active" href="#network" aria-label="Карта связей">
+          <Icon name="network" size={21} />
+        </a>
+        <a className="rail-link" href="#priorities" aria-label="Очередь на проверку">
+          <Icon name="list" size={21} />
+        </a>
+        <button
+          className={`rail-link ${inspectorTab === 'copilot' ? 'active' : ''}`}
+          aria-label="Открыть AI Copilot"
+          onClick={openCopilot}
+        >
+          <Icon name="spark" size={21} />
+        </button>
+        <span className="rail-spacer" />
+        <a className="rail-link" href="#methodology" aria-label="О данных и ограничениях">
+          <Icon name="info" size={20} />
+        </a>
+        <span className="rail-caption">
+          HACKALEM
+          <br />
+          2026
+        </span>
+      </nav>
+      <div className="app-body">
+        <Header data={data} onStart={start} onCopilot={openCopilot} />
+        <main>
+          {loading && <LoadingState />}
+          {!loading && error && (
+            <ErrorState
+              error={error}
+              onRetry={() => void fetchData()}
+              onDemo={() => void fetchData('/fixtures')}
+            />
+          )}
+          {!loading && data && (
+            <>
+              <div className="workspace-heading" id="network">
+                <div className="workspace-label">
+                  <span className="section-index">01 /</span>
+                  <h2>Исследование сети</h2>
+                </div>
+                <span className="local-note">
+                  <Icon name="shield" size={13} />
+                  Граф по локальной выгрузке
+                </span>
+              </div>
+              <section className="workspace">
+                <FilterPanel
+                  filters={filters}
+                  clusters={data.clusters}
+                  nodes={data.nodes}
+                  filteredCount={filteredNodes.length}
+                  onChange={setFilter}
+                  onReset={reset}
+                />
+                <GraphPanel
+                  graph={graph}
+                  selected={selected}
+                  hovered={hovered}
+                  search={filters.search}
+                  neighborsOnly={neighborsOnly}
+                  focus={focused}
+                  highlights={highlights}
+                  hasAnswer={Boolean(copilotAnswer)}
+                  onClearEvidence={() => { setCopilotAnswer(null); setFocused(undefined) }}
+                  onCopilot={openCopilot}
+                  onSearch={updateSearch}
+                  onSelect={selectOnGraph}
+                  onHover={setHoveredId}
+                  onNeighbors={() => {
+                    setNeighborsOnly(!(neighborsOnly || graph.focused))
+                    setNeighborhoodId(selectedId)
+                    setFilters((current) => ({ ...initialFilters, limit: current.limit }))
+                  }}
+                  onReset={reset}
+                />
+                <aside className="inspector panel" id="inspector">
+                  <div className="inspector-tabs" role="tablist" aria-label="Панель исследования">
+                    <button
+                      id="profile-tab" role="tab" aria-controls="profile-panel"
+                      aria-selected={inspectorTab === 'profile'}
+                      onClick={() => setInspectorTab('profile')}
+                    >
+                      <Icon name="list" size={15} />
+                      Обзор клиента
+                    </button>
+                    <button
+                      id="copilot-tab" role="tab" aria-controls="copilot-panel"
+                      aria-selected={inspectorTab === 'copilot'}
+                      onClick={() => setInspectorTab('copilot')}
+                    >
+                      <Icon name="spark" size={15} />
+                      AI Copilot
+                      <span className="copilot-tab-badge">{copilotAnswer ? '1' : '✦'}</span>
+                    </button>
+                  </div>
+                  <div
+                    className="inspector-scroll"
+                    id="profile-panel" role="tabpanel" aria-labelledby="profile-tab"
+                    hidden={inspectorTab !== 'profile'}
+                    key={selectedId ?? 'empty'}
+                  >
+                    {selected ? (
+                      <NodeInspector
+                        node={selected}
+                        edges={data.edges}
+                        rank={data.topNodes.find((n) => n.gid === selected.gid)?.rank}
+                        onSelect={focusNode}
+                        onClose={() => setSelectedId(undefined)}
+                      />
+                    ) : (
+                      <EmptyInspector search={filters.search} onStart={start} />
+                    )}
+                  </div>
+                  <div className="inspector-scroll" id="copilot-panel" role="tabpanel" aria-labelledby="copilot-tab" hidden={inspectorTab !== 'copilot'}>
+                    <CopilotSlot><CopilotPanel key={data.source} data={data} selectedId={selectedId} onNavigate={navigateFromCopilot} onAnswer={receiveAnswer} /></CopilotSlot>
+                  </div>
+                </aside>
+              </section>
+              <PriorityTable rows={data.topNodes} selectedId={selectedId} onSelect={focusNode} />
+              <footer className="page-footer" id="methodology">
+                <div className="footer-brand">
+                  TAYMAS <span>FINANCIAL INTELLIGENCE</span>
+                </div>
+                <details>
+                  <summary>
+                    О данных и ограничениях <Icon name="info" size={13} />
+                  </summary>
+                  <p>
+                    Граф направленный: стрелка указывает получателя. Цвет обозначает роль или
+                    кластер, размер — приоритет проверки. Обход ограничен четырьмя шагами от seed: у
+                    4-го колена исходящие не наблюдаются, вход seed может быть неполным. Все выводы
+                    — гипотезы для аналитика. Источник: {data.source}.
+                  </p>
+                </details>
+                <span>HackAlem · 2026</span>
+              </footer>
+            </>
+          )}
+        </main>
+      </div>
+    </div>
+  )
 }
-
-function NodeInspector({ node, incoming, outgoing, flowSummary, onSelectNeighbor, onClose }: { node: NodeRecord, incoming: { src: string, sum_kzt: number, n_tx: number }[], outgoing: { dst: string, sum_kzt: number, n_tx: number }[], flowSummary: ReturnType<typeof summarizeNodeFlows>, onSelectNeighbor: (gid: string) => void, onClose: () => void }) {
-  return <div className="node-inspector" role="region" aria-label={`Карточка узла ${node.gid}`}><div className="inspector-header"><div><p className="eyebrow">NODE PROFILE</p><h2>{node.gid}</h2></div><button className="close-button" onClick={onClose} aria-label="Закрыть карточку">×</button></div><div className="role-banner" style={{ borderColor: ROLE_COLORS[node.role] ?? ROLE_COLORS.peripheral }}><span className="role-dot" style={{ background: ROLE_COLORS[node.role] }} /><strong>{node.role}</strong><span>{node.is_seed ? 'seed' : `depth ${node.depth}`}</span></div><div className="score-grid"><div><small>ROLE SCORE</small><strong>{node.role_score.toFixed(2)}</strong></div><div><small>PRIORITY</small><strong className="gold-text">{node.priority_score.toFixed(3)}</strong></div><div><small>CLUSTER</small><strong>{node.cluster_id}</strong></div><div><small>DEPTH</small><strong>{node.depth}</strong></div><div><small>SEED</small><strong>{node.is_seed ? 'да' : 'нет'}</strong></div></div><div className="evidence"><p className="eyebrow">ОБОСНОВАНИЕ</p><p>{node.evidence}</p>{isBoundaryNode(node) && <div className="boundary-warning">⚠ 4-е колено: исходящие переводы не наблюдаются после границы обхода. Это граница выборки, а не доказательство конечного получателя.</div>}</div><div className="why-block"><p className="eyebrow">ПОЧЕМУ В ПРИОРИТЕТЕ</p><p>{node.priority_why}</p></div><div className="flow-summary" aria-label="Агрегаты денежных потоков"><div><small>ПОЛУЧЕНО</small><strong>{money(flowSummary.incoming.sum_kzt)} KZT</strong><span>{fmt.format(flowSummary.incoming.n_tx)} tx · {flowSummary.incoming.counterpart_count} отправителей</span></div><div><small>ОТПРАВЛЕНО</small><strong>{money(flowSummary.outgoing.sum_kzt)} KZT</strong><span>{fmt.format(flowSummary.outgoing.n_tx)} tx · {flowSummary.outgoing.counterpart_count} получателей</span></div></div><details className="accessible-summary"><summary>Текстовая сводка для клавиатуры</summary><p>{node.gid}: роль {node.role}, приоритет {node.priority_score.toFixed(3)}. Получено {flowSummary.incoming.sum_kzt} KZT за {flowSummary.incoming.n_tx} транзакций; отправлено {flowSummary.outgoing.sum_kzt} KZT за {flowSummary.outgoing.n_tx} транзакций.</p></details><FlowList title="ПОЛУЧАЕТ ОТ" rows={incoming.map((edge) => ({ gid: edge.src, sum: edge.sum_kzt, n: edge.n_tx }))} empty="Входящие связи не найдены" onSelect={onSelectNeighbor} /><FlowList title="ОТПРАВЛЯЕТ" rows={outgoing.map((edge) => ({ gid: edge.dst, sum: edge.sum_kzt, n: edge.n_tx }))} empty="Исходящие связи не найдены" onSelect={onSelectNeighbor} /></div>
-}
-
-function FlowList({ title, rows, empty, onSelect }: { title: string, rows: { gid: string, sum: number, n: number }[], empty: string, onSelect: (gid: string) => void }) { const shown = rows.slice(0, 5); return <div className="flow-list"><p className="eyebrow">{title} · {rows.length ? `${shown.length} из ${rows.length}` : '0'}</p>{shown.length ? shown.map((row) => <button className="flow-row" key={row.gid} onClick={() => onSelect(row.gid)} aria-label={`Открыть узел ${row.gid}`}><span className="flow-gid">{row.gid}</span><span>{money(row.sum)} KZT <small>· {row.n} tx</small></span></button>) : <p className="muted small">{empty}</p>}</div> }

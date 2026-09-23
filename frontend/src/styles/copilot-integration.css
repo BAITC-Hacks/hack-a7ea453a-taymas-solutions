@@ -1,0 +1,108 @@
+/* PAN-48 is kept intact. Its public CSS classes are themed at the layout boundary. */
+.copilot-slot { --mint: var(--accent); }
+.copilot-slot .copilot { padding: 18px; }
+.copilot-slot .copilot-heading { gap: 12px; }
+.copilot-slot .copilot-symbol {
+  width: 40px; height: 40px; border-radius: 12px;
+  color: var(--accent); border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  background: var(--accent-dim);
+}
+.copilot-slot .copilot-heading h2 { font-size: 18px; letter-spacing: -.035em; }
+.copilot-slot .copilot-heading .eyebrow { color: var(--muted); font: 9px var(--font-mono); }
+.copilot-slot .copilot-intro { color: var(--muted); font-size: 12px; line-height: 1.65; margin-top: 12px; }
+.copilot-slot .copilot-mode { color: var(--muted); border-color: var(--line); font-size: 10px; margin: 14px 0; padding: 10px 0; gap: 8px; }
+.copilot-slot .copilot-mode .connected { color: var(--accent); }
+.copilot-slot .copilot-prompts { gap: 7px; }
+.copilot-slot .copilot-prompts button {
+  background: var(--surface); border-color: var(--line);
+  color: var(--soft); border-radius: 8px; font-size: 12px; padding: 11px;
+}
+.copilot-slot .copilot-prompts button:hover:not(:disabled) {
+  background: var(--accent-dim); border-color: var(--accent); color: var(--text);
+  transform: translateX(2px);
+}
+.copilot-slot .copilot-prompts span { color: var(--faint); font-family: var(--font-mono); }
+.copilot-slot .copilot-form { margin-top: 17px; }
+.copilot-slot .copilot-context-heading { color: var(--soft); font-size: 11px; }
+.copilot-slot .copilot-context-heading > span { color: var(--faint); }
+.copilot-slot .copilot-chips { margin: 7px 0; }
+.copilot-slot .copilot-chips > span { background: var(--accent-dim); border-color: var(--line); color: var(--accent); border-radius: 6px; font-family: var(--font-mono); }
+.copilot-slot .copilot-chips small { color: var(--faint); }
+.copilot-slot .copilot-chips button { color: var(--accent); }
+.copilot-slot .copilot-add input {
+  flex: 1; width: 100%; height: 35px; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px;
+  color: var(--soft); font: 11px var(--font-mono);
+}
+.copilot-slot .copilot-add input::placeholder, .copilot-slot .copilot textarea::placeholder { color: var(--faint); }
+.copilot-slot .copilot-add > button { color: var(--accent); background: var(--surface); border-color: var(--line); border-radius: 6px; }
+.copilot-slot .copilot-add-selected { color: var(--accent); font-size: 11px; padding-top: 8px; }
+.copilot-slot .copilot-question-label { color: var(--soft); font-size: 11px; margin-top: 14px; }
+.copilot-slot .copilot textarea {
+  color: var(--text); background: var(--bg); border-color: var(--line);
+  font-size: 12px; min-height: 84px; border-radius: 8px; display: block;
+}
+.copilot-slot .copilot textarea:focus { outline-color: var(--accent); border-color: var(--accent); }
+.copilot-slot .copilot-send-row > span { color: var(--faint); font-family: var(--font-mono); }
+.copilot-slot .copilot-send { color: var(--bg); border-color: var(--accent); background: var(--accent); border-radius: 7px; font-size: 12px; }
+.copilot-slot .copilot-send:hover:not(:disabled) { background: var(--text); border-color: var(--text); }
+.copilot-slot .copilot-cancel { color: var(--soft); border-color: var(--line); background: var(--surface); }
+.copilot-slot .copilot-result { border-color: var(--line); margin-top: 18px; padding-top: 16px; }
+.copilot-slot .copilot-empty { color: var(--muted); padding-bottom: 6px; }
+.copilot-slot .copilot-empty > span { color: var(--accent); }
+.copilot-slot .copilot-empty small { color: var(--faint); font-size: 11px; }
+.copilot-slot .copilot-loading { color: var(--soft); }
+.copilot-slot .copilot-loading p { color: var(--muted); }
+.copilot-slot .copilot-error { border-color: var(--gold); color: var(--gold); background: color-mix(in srgb, var(--gold) 6%, transparent); border-radius: 8px; }
+.copilot-slot .copilot-error > span { color: var(--muted); }
+.copilot-slot .copilot-answer-label { color: var(--text); font-size: 14px; }
+.copilot-slot .copilot-provider { border-color: var(--line); color: var(--accent); background: var(--accent-dim); font-size: 9px; border-radius: 4px; }
+.copilot-slot .copilot-asked { color: var(--muted); font-size: 11px; }
+.copilot-slot .copilot-summary { color: var(--soft); font-size: 12px; line-height: 1.8; }
+.copilot-slot .copilot-notice { color: var(--gold); border-color: var(--gold); background: color-mix(in srgb, var(--gold) 6%, transparent); font-size: 11px; }
+.copilot-slot .copilot-candidates { border-color: var(--line); border-radius: 8px; }
+.copilot-slot .copilot-candidate { background: var(--surface); border-color: var(--line); padding: 12px 10px; }
+.copilot-slot .copilot-position { color: var(--faint); }
+.copilot-slot .copilot-candidate small { color: var(--muted); }
+.copilot-slot .copilot-gid { color: var(--accent); font: 11px var(--font-mono); text-decoration-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+.copilot-slot .copilot-gid:hover { color: var(--text); }
+.copilot-slot .copilot-next { background: var(--accent-dim); border-color: color-mix(in srgb, var(--accent) 20%, transparent); border-radius: 8px; padding: 14px; }
+.copilot-slot .copilot-next .eyebrow { color: var(--accent); }
+.copilot-slot .copilot-next > p:not(.eyebrow) { color: var(--soft); font-size: 12px; line-height: 1.75; }
+.copilot-slot .copilot-facts > summary,
+.copilot-slot .copilot-all-facts > summary,
+.copilot-slot .copilot-warnings > summary { color: var(--soft); font-size: 12px; }
+.copilot-slot .copilot-facts > summary span { color: var(--faint); }
+.copilot-slot .copilot-fact { border-color: var(--line-soft); }
+.copilot-slot .copilot-fact > p { color: var(--muted); font-size: 11px; }
+.copilot-slot .copilot-fact strong { color: var(--text); }
+.copilot-slot .copilot-fact > small { color: var(--faint); font: 9px var(--font-mono); }
+.copilot-slot .copilot-fact-nodes > span { color: var(--muted); }
+.copilot-slot .copilot-warnings p { color: var(--gold); font-size: 11px; }
+.copilot-slot .copilot-audit,
+.copilot-slot .copilot-disclaimer { color: var(--faint); border-color: var(--line); font-size: 10px; }
+.copilot-tab-badge { display: grid; place-items: center; min-width: 17px; height: 17px; border-radius: 5px; background: var(--accent-dim); color: var(--accent); font: 10px var(--font-mono); }
+.inspector-tabs button[aria-selected='true'] { color: var(--accent); }
+.inspector-tabs button[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); }
+
+.evidence-strip {
+  display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+  color: var(--accent); background: var(--accent-dim); border-bottom: 1px solid var(--line);
+}
+.evidence-label { background: none; border: 0; text-align: left; padding: 0; font-size: 11px; color: var(--accent); }
+.evidence-label small { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
+.evidence-strip .icon-button { margin-left: auto; }
+.graph-viewbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px 10px; }
+.graph-viewbar > span { color: var(--muted); font-size: 10px; }
+.graph-viewbar > span .gid { color: var(--soft); margin-left: 5px; }
+.flow-guide { position: absolute; inset: 0 0 auto; z-index: 1; display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; pointer-events: none; background: linear-gradient(var(--canvas) 50%, transparent); }
+.flow-guide > div > span { display: block; color: var(--faint); font: 8px var(--font-mono); letter-spacing: .1em; }
+.flow-guide strong { display: block; color: var(--accent); font-size: 13px; font-weight: 500; margin-top: 4px; }
+.flow-guide strong small { color: var(--faint); font-size: 8px; }
+.flow-guide > div:last-child { text-align: right; }
+.flow-guide > div:last-child strong { color: var(--gold); }
+.flow-guide > div:nth-child(3) { text-align: center; }
+.flow-guide > div:nth-child(3) strong { color: var(--soft); }
+.flow-guide-arrow { color: var(--faint); }
+@media (max-width: 1180px) and (min-width: 1001px) { .flow-guide > div:nth-child(3), .flow-guide-arrow { display: none; } }
+@media (max-width: 640px) { .copilot-slot .copilot { padding: 18px; } .flow-guide { padding: 14px; } .flow-guide-arrow { display: none; } }
