@@ -42,14 +42,8 @@ export default function App() {
   const [inspectorTab, setInspectorTab] = useState<'profile' | 'copilot'>('copilot')
   const [copilotAnswer, setCopilotAnswer] = useState<CopilotAnswer | null>(null)
   const [focused, setFocused] = useState<{ gid: string; sequence: number }>()
-  const navigateFromCopilot = useCallback((gid: string) => {
-    setSelectedId(gid)
-    setFocused(previous => ({ gid, sequence: (previous?.sequence ?? 0) + 1 }))
-    setInspectorTab('profile')
-  }, [])
   const receiveAnswer = useCallback((answer: CopilotAnswer | null) => {
     setCopilotAnswer(answer)
-    setFocused(undefined)
   }, [])
 
   const fetchData = useCallback(async (source = '/out') => {
@@ -86,16 +80,16 @@ export default function App() {
     () =>
       data
         ? buildGraphView(data.nodes, data.edges, filters, topIds, graphFocusId, neighborsOnly)
-        : { nodes: [], edges: [], total: 0, focused: false },
+        : { nodes: [], edges: [], total: 0, focused: false, outsideFilterCount: 0, outsideLimitCount: 0 },
     [data, filters, topIds, graphFocusId, neighborsOnly],
   )
   const highlights = useMemo(() => answerHighlights(copilotAnswer), [copilotAnswer])
   const graph = useMemo(() => {
     if (!data) return { ...baseGraph, extraCount: 0 }
-    const enriched = includeEvidence(baseGraph, data, highlights.gids, focused?.gid)
+    const enriched = includeEvidence(baseGraph, data, highlights.gids)
     // Highlighting already-visible evidence must not reset the layout or camera.
     return enriched.extraCount ? { ...baseGraph, ...enriched } : { ...baseGraph, extraCount: 0 }
-  }, [baseGraph, data, highlights, focused?.gid])
+  }, [baseGraph, data, highlights])
   const byId = useMemo(() => new Map(data?.nodes.map((n) => [n.gid, n]) ?? []), [data])
   const selected = selectedId ? byId.get(selectedId) : undefined
   const hovered = hoveredId ? byId.get(hoveredId) : undefined
@@ -115,14 +109,6 @@ export default function App() {
     setFocused(undefined)
     if (key !== 'limit') setSelectedId(undefined)
   }
-  const updateSearch = (value: string) => {
-    setFilters((current) => ({ ...current, search: value }))
-    setNeighborsOnly(false)
-    setHoveredId(undefined)
-    setFocused(undefined)
-    setSelectedId(data ? findNodeByGid(data.nodes, value)?.gid : undefined)
-    setInspectorTab('profile')
-  }
   const reset = () => {
     setFilters(initialFilters)
     setSelectedId(undefined)
@@ -130,12 +116,13 @@ export default function App() {
     setNeighborsOnly(false)
     setFocused(undefined)
   }
-  const focusNode = useCallback((gid: string) => {
+  const navigateNode = useCallback((gid: string, search = '') => {
+    if (!data || !findNodeByGid(data.nodes, gid)) return
     setWorkspaceView('network')
-    setFilters((current) => ({ ...initialFilters, limit: current.limit }))
+    setFilters((current) => ({ ...current, search }))
     setSelectedId(gid)
     setNeighborhoodId(gid)
-    setFocused(undefined)
+    setFocused(previous => ({ gid, sequence: (previous?.sequence ?? 0) + 1 }))
     setNeighborsOnly(true)
     setHoveredId(undefined)
     setInspectorTab('profile')
@@ -145,7 +132,25 @@ export default function App() {
         : 'smooth',
       block: 'start',
     })
-  }, [])
+  }, [data])
+  const focusNode = useCallback((gid: string) => navigateNode(gid), [navigateNode])
+  const clearContext = () => {
+    setFilters((current) => ({ ...current, search: '' }))
+    setSelectedId(undefined)
+    setNeighborhoodId(undefined)
+    setNeighborsOnly(false)
+    setHoveredId(undefined)
+    setFocused(undefined)
+  }
+  const updateSearch = (value: string) => {
+    const exact = data ? findNodeByGid(data.nodes, value) : undefined
+    if (exact) navigateNode(exact.gid, value)
+    else {
+      clearContext()
+      setFilters((current) => ({ ...current, search: value }))
+      setInspectorTab('profile')
+    }
+  }
   const start = () => {
     if (data?.topNodes[0]) focusNode(data.topNodes[0].gid)
   }
@@ -236,15 +241,15 @@ export default function App() {
                   focus={focused}
                   highlights={highlights}
                   hasAnswer={Boolean(copilotAnswer)}
-                  onClearEvidence={() => { setCopilotAnswer(null); setFocused(undefined) }}
+                  onClearEvidence={() => setCopilotAnswer(null)}
+                  onClearContext={clearContext}
                   onCopilot={openCopilot}
                   onSearch={updateSearch}
                   onSelect={selectOnGraph}
                   onHover={setHoveredId}
                   onNeighbors={() => {
-                    setNeighborsOnly(!(neighborsOnly || graph.focused))
-                    setNeighborhoodId(selectedId)
-                    setFilters((current) => ({ ...initialFilters, limit: current.limit }))
+                    if (neighborsOnly || graph.focused) clearContext()
+                    else if (selectedId) navigateNode(selectedId)
                   }}
                   onReset={reset}
                 />
@@ -298,7 +303,7 @@ export default function App() {
                     )}
                   </div>
                   <div className="inspector-scroll" id="copilot-panel" role="tabpanel" aria-labelledby="copilot-tab" hidden={inspectorTab !== 'copilot'}>
-                    <CopilotSlot><CopilotPanel key={data.source} data={data} selectedId={selectedId} onNavigate={navigateFromCopilot} onAnswer={receiveAnswer} onSaveAnswer={casebook.saveAnswer} canSave={Boolean(casebook.version)} /></CopilotSlot>
+                    <CopilotSlot><CopilotPanel key={data.source} data={data} selectedId={selectedId} onNavigate={focusNode} onAnswer={receiveAnswer} onSaveAnswer={casebook.saveAnswer} canSave={Boolean(casebook.version)} /></CopilotSlot>
                   </div>
                 </aside>
               </section>

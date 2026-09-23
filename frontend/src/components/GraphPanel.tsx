@@ -6,7 +6,7 @@ import { summarizeNodeFlows } from '../filters'
 import { Icon } from './Icon'
 
 type Props = {
-  graph: { nodes: NodeRecord[]; edges: EdgeRecord[]; total: number; focused: boolean; contextId?: string; extraCount: number }
+  graph: { nodes: NodeRecord[]; edges: EdgeRecord[]; total: number; focused: boolean; contextId?: string; extraCount: number; outsideFilterCount: number; outsideLimitCount: number }
   selected?: NodeRecord
   hovered?: NodeRecord
   search: string
@@ -15,6 +15,7 @@ type Props = {
   highlights: { gids: string[]; edges: string[] }
   hasAnswer: boolean
   onClearEvidence: () => void
+  onClearContext: () => void
   onCopilot: () => void
   onSearch: (value: string) => void
   onSelect: (gid: string) => void
@@ -32,6 +33,7 @@ export function GraphPanel({
   highlights,
   hasAnswer,
   onClearEvidence,
+  onClearContext,
   onCopilot,
   onSearch,
   onSelect,
@@ -67,11 +69,11 @@ export function GraphPanel({
           </button>
         </div>
       </div>
-      {(hasAnswer || focus) && (
+      {hasAnswer && (
         <div className="evidence-strip" role="status">
           <Icon name="spark" size={14} />
           <button onClick={onCopilot} className="evidence-label">
-            {hasAnswer ? `Факты Copilot · узлы: ${highlights.gids.length}` : 'Узел из ответа на графе'}
+            {`Факты Copilot · узлы: ${highlights.gids.length}`}
             {graph.extraCount > 0 && <small>+{graph.extraCount} вне фильтров и лимита</small>}
           </button>
           <button className="icon-button" onClick={onClearEvidence} aria-label="Снять подсветку Copilot">
@@ -110,6 +112,13 @@ export function GraphPanel({
           Соседи
         </button>
       </div>
+      {graph.focused && <div className="graph-viewbar navigation-context" role="status">
+        <span>Полное окружение клиента
+          {graph.outsideFilterCount > 0 && ` · ${graph.outsideFilterCount} вне фильтров`}
+          {graph.outsideLimitCount > 0 && ` · ${graph.outsideLimitCount} сверх лимита`}
+        </span>
+        <button className="text-button" onClick={onClearContext}>Снять временное окружение</button>
+      </div>}
       {canShowFlow && <div className="graph-viewbar">
         <div className="segment-control" aria-label="Раскладка графа">
           <button aria-pressed={layout === 'flow'} onClick={() => setLayout('flow')}>Потоки</button>
