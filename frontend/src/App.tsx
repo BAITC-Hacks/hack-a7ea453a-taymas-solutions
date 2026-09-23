@@ -33,6 +33,7 @@ export default function App() {
   const [hoveredId, setHoveredId] = useState<string>()
   const [neighborsOnly, setNeighborsOnly] = useState(true)
   const [neighborhoodId, setNeighborhoodId] = useState<string>()
+  const [focusMode, setFocusMode] = useState(false)
   const [inspectorTab, setInspectorTab] = useState<'profile' | 'copilot'>('copilot')
   const [copilotAnswer, setCopilotAnswer] = useState<CopilotAnswer | null>(null)
   const [focused, setFocused] = useState<{ gid: string; sequence: number }>()
@@ -84,9 +85,12 @@ export default function App() {
     [data, filters, topIds, graphFocusId, neighborsOnly],
   )
   const highlights = useMemo(() => answerHighlights(copilotAnswer), [copilotAnswer])
-  const graph = useMemo(() => data
-    ? { ...baseGraph, ...includeEvidence(baseGraph, data, highlights.gids, focused?.gid) }
-    : { ...baseGraph, extraCount: 0 }, [baseGraph, data, highlights, focused?.gid])
+  const graph = useMemo(() => {
+    if (!data) return { ...baseGraph, extraCount: 0 }
+    const enriched = includeEvidence(baseGraph, data, highlights.gids, focused?.gid)
+    // Highlighting already-visible evidence must not reset the layout or camera.
+    return enriched.extraCount ? { ...baseGraph, ...enriched } : { ...baseGraph, extraCount: 0 }
+  }, [baseGraph, data, highlights, focused?.gid])
   const byId = useMemo(() => new Map(data?.nodes.map((n) => [n.gid, n]) ?? []), [data])
   const selected = selectedId ? byId.get(selectedId) : undefined
   const hovered = hoveredId ? byId.get(hoveredId) : undefined
@@ -145,7 +149,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${focusMode ? 'focus-mode' : ''}`}>
       <nav className="nav-rail" aria-label="Навигация по рабочему пространству">
         <a className="rail-logo" href="#network" title="Taymas">
           T<span>↗</span>
@@ -153,7 +157,7 @@ export default function App() {
         <a className="rail-link active" href="#network" aria-label="Карта связей">
           <Icon name="network" size={21} />
         </a>
-        <a className="rail-link" href="#priorities" aria-label="Очередь на проверку">
+        <a className="rail-link" href="#priorities" aria-label="Очередь на проверку" onClick={() => setFocusMode(false)}>
           <Icon name="list" size={21} />
         </a>
         <button
@@ -164,7 +168,7 @@ export default function App() {
           <Icon name="spark" size={21} />
         </button>
         <span className="rail-spacer" />
-        <a className="rail-link" href="#methodology" aria-label="О данных и ограничениях">
+        <a className="rail-link" href="#methodology" aria-label="О данных и ограничениях" onClick={() => setFocusMode(false)}>
           <Icon name="info" size={20} />
         </a>
         <span className="rail-caption">
@@ -191,10 +195,13 @@ export default function App() {
                   <span className="section-index">01 /</span>
                   <h2>Исследование сети</h2>
                 </div>
-                <span className="local-note">
-                  <Icon name="shield" size={13} />
-                  Граф по локальной выгрузке
-                </span>
+                <div className="workspace-actions">
+                  <span className="local-note"><Icon name="shield" size={13} />Граф по локальной выгрузке</span>
+                  <button className="workspace-expand" aria-pressed={focusMode} onClick={() => {
+                    setFocusMode(!focusMode)
+                    window.scrollTo({ top: 0, behavior: 'instant' })
+                  }}><Icon name="expand" size={14} />{focusMode ? 'Вернуть обзор' : 'Режим фокуса'}</button>
+                </div>
               </div>
               <section className="workspace">
                 <FilterPanel
@@ -227,10 +234,18 @@ export default function App() {
                   onReset={reset}
                 />
                 <aside className="inspector panel" id="inspector">
-                  <div className="inspector-tabs" role="tablist" aria-label="Панель исследования">
+                  <div className="inspector-tabs" role="tablist" aria-label="Панель исследования"
+                    onKeyDown={event => {
+                      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+                      event.preventDefault()
+                      const next = event.key === 'Home' ? 'profile' : event.key === 'End' ? 'copilot' : inspectorTab === 'profile' ? 'copilot' : 'profile'
+                      setInspectorTab(next)
+                      document.getElementById(`${next}-tab`)?.focus()
+                    }}>
                     <button
                       id="profile-tab" role="tab" aria-controls="profile-panel"
                       aria-selected={inspectorTab === 'profile'}
+                      tabIndex={inspectorTab === 'profile' ? 0 : -1}
                       onClick={() => setInspectorTab('profile')}
                     >
                       <Icon name="list" size={15} />
@@ -239,6 +254,7 @@ export default function App() {
                     <button
                       id="copilot-tab" role="tab" aria-controls="copilot-panel"
                       aria-selected={inspectorTab === 'copilot'}
+                      tabIndex={inspectorTab === 'copilot' ? 0 : -1}
                       onClick={() => setInspectorTab('copilot')}
                     >
                       <Icon name="spark" size={15} />

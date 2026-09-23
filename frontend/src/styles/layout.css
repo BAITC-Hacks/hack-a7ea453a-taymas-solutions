@@ -662,4 +662,11 @@ h1 > span {
 .hero-actions .primary-button { margin-top: 0; max-width: none; }
 .hero-actions .text-button { font-size: 11px; color: var(--muted); }
 .hero-actions .text-button:hover { color: var(--accent); }
+.workspace-actions { display: flex; align-items: center; gap: 18px; }
+.workspace-expand { display: flex; align-items: center; gap: 7px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--soft); font-size: 10px; }
+.workspace-expand:hover, .workspace-expand[aria-pressed='true'] { color: var(--accent); border-color: var(--accent); }
+.focus-mode .page-heading, .focus-mode .stats-strip, .focus-mode .priority-panel, .focus-mode .page-footer { display: none; }
+.focus-mode .app-body .workspace { height: calc(100dvh - 134px); min-height: 520px; }
+@media (max-width: 1000px) { .focus-mode .app-body .workspace { height: auto; } }
+@media (max-width: 640px) { .workspace-actions .local-note { display: none; } .workspace-label { gap: 6px; } .workspace-label h2 { font-size: 12px; } }
 @media (max-width: 640px) { .hero-actions { align-items: flex-start; } }

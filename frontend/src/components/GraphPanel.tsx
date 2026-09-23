@@ -71,7 +71,7 @@ export function GraphPanel({
         <div className="evidence-strip" role="status">
           <Icon name="spark" size={14} />
           <button onClick={onCopilot} className="evidence-label">
-            {hasAnswer ? `Факты Copilot · ${highlights.gids.length} узлов` : 'Узел из ответа на графе'}
+            {hasAnswer ? `Факты Copilot · узлы: ${highlights.gids.length}` : 'Узел из ответа на графе'}
             {graph.extraCount > 0 && <small>+{graph.extraCount} вне фильтров и лимита</small>}
           </button>
           <button className="icon-button" onClick={onClearEvidence} aria-label="Снять подсветку Copilot">
