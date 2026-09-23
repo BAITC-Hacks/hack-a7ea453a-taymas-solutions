@@ -45,6 +45,21 @@ services:
       retries: 20
     restart: unless-stopped
 
+  # PAN-55: необязательный бонус — предвычисление устойчивости сети для UI (≈1 мин).
+  # UI от него не зависит: пока файла нет, раздел сообщает, что расчёт не выполнен.
+  resilience:
+    image: ${PIPELINE_IMAGE:-money-graph-pipeline:local}
+    entrypoint: ["python", "-m", "analytics.resilience_export"]
+    command: ["--out", "/app/out"]
+    depends_on:
+      pipeline:
+        condition: service_completed_successfully
+    volumes:
+      - type: bind
+        source: ./out
+        target: /app/out
+    restart: "no"
+
   ui:
     build:
       context: .

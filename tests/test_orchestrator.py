@@ -265,11 +265,10 @@ def test_string_gid_from_model_and_no_leaked_context():
     assert result["provider"] == "nvidia"
     schema = client.requests[0]["tools"][0]["function"]["parameters"]
     assert schema["oneOf"][0]["properties"]["gid"]["enum"] == ["11"]
-    # Transport timeout contains nondeterministic fractional digits (including
-    # "12"); inspect only the payload actually exposed to the model.
-    payloads = [{key: value for key, value in call.items() if key != "timeout"}
-                for call in client.requests]
-    assert "12" not in json.dumps(payloads)
+    # Inspect model context, not the transport timeout (e.g. 7.999794125).
+    context = [{key: call[key] for key in ("messages", "tools")} for call in client.requests]
+    assert "12" not in json.dumps(context)
+
 
 
 def test_missing_model_does_not_attempt_api(monkeypatch):
