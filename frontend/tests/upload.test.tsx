@@ -98,6 +98,7 @@ describe('Parquet upload workflow', () => {
     const user = userEvent.setup(); render(<App />)
     await screen.findByTestId('graph-nodes')
     await user.type(screen.getByLabelText('Поиск по GID'), A)
+    await user.click(screen.getByRole('tab', { name: /AI Copilot/ }))
     await user.click(screen.getByRole('button', { name: /Почему этот узел/ }))
     await user.click(screen.getByRole('button', { name: /Разобрать вопрос/ }))
     await screen.findByText('Проверяем связи и факты')

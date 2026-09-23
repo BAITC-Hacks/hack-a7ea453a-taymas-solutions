@@ -1,4 +1,11 @@
-export type Role = 'consolidator' | 'transit' | 'distributor' | 'terminal' | 'coordinator' | 'peripheral' | string
+export type Role =
+  | 'consolidator'
+  | 'transit'
+  | 'distributor'
+  | 'terminal'
+  | 'coordinator'
+  | 'peripheral'
+  | string
 
 export interface NodeRecord {
   gid: string
@@ -67,13 +74,20 @@ export interface FilterState {
   limit: number
 }
 
-export const ROLES = ['coordinator', 'consolidator', 'distributor', 'transit', 'terminal', 'peripheral'] as const
+export const ROLES = [
+  'coordinator',
+  'consolidator',
+  'distributor',
+  'transit',
+  'terminal',
+  'peripheral',
+] as const
 
 export const ROLE_COLORS: Record<string, string> = {
-  coordinator: '#ffbd69',
-  consolidator: '#70e1c8',
-  distributor: '#70a9ff',
-  transit: '#bb8cff',
-  terminal: '#f4849a',
-  peripheral: '#6b7c98',
+  coordinator: 'var(--role-coordinator)',
+  consolidator: 'var(--role-consolidator)',
+  distributor: 'var(--role-distributor)',
+  transit: 'var(--role-transit)',
+  terminal: 'var(--role-terminal)',
+  peripheral: 'var(--role-peripheral)',
 }

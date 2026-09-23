@@ -7,6 +7,7 @@ out/
 out_priority_check/
 out_review/
 data/
+/data
 *.py[cod]
 
 # локальные материалы организаторов и настройки агента
