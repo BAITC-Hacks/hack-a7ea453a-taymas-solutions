@@ -106,4 +106,4 @@ fi
 
 echo "==> Starting UI on http://127.0.0.1:$FRONTEND_PORT"
 echo "Press Ctrl+C to stop."
-npm run dev -- --host 127.0.0.1 --port "$FRONTEND_PORT"
+npm run dev -- --host 127.0.0.1 --port "$FRONTEND_PORT" --open

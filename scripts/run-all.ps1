@@ -110,7 +110,7 @@ try {
         }
         Write-Host "==> Starting UI on http://127.0.0.1:$FrontendPort"
         Write-Host "Press Ctrl+C to stop."
-        npm run dev -- --host 127.0.0.1 --port $FrontendPort
+        npm run dev -- --host 127.0.0.1 --port $FrontendPort --open
         exit $LASTEXITCODE
     } finally {
         Pop-Location
