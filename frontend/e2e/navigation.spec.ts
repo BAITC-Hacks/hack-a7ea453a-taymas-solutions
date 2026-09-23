@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
+import type { Core } from 'cytoscape'
 import { parseCsv } from '../src/csv'
 
 // Use the pipeline's real output, including GIDs larger than JS safe integers.
@@ -70,4 +71,28 @@ test('isolated seed has no invented arrows and an absent GID shows a clear error
   await page.getByLabel('Поиск по GID').fill(unknown)
   await expect(page.getByText('Точный GID не найден', { exact: true })).toBeVisible()
   await expect(page.locator('.node-inspector')).toHaveCount(0)
+})
+
+// These observed neighborhoods are strongly asymmetric in the flow layout.
+// Read Cytoscape's existing container registration in the test only: no product
+// debug globals or test-only rendering paths are required.
+test('asymmetric neighborhoods remain inside the canvas after navigation and resize', async ({ page }) => {
+  async function expectNodesInsideCanvas() {
+    await expect.poll(() => page.locator('.graph-canvas').evaluate(element => {
+      const cy = (element as HTMLElement & { _cyreg?: { cy: Core } })._cyreg?.cy
+      if (!cy) return ['graph not mounted']
+      return cy.nodes().filter(node => {
+        const box = node.renderedBoundingBox({ includeLabels: false })
+        return box.x1 < 0 || box.y1 < 0 || box.x2 > cy.width() || box.y2 > cy.height()
+      }).map(node => node.id())
+    })).toEqual([])
+  }
+  for (const gid of ['100000001697501100', '100000008489922100', '100000002957787100']) {
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.getByLabel('Поиск по GID').fill(gid)
+    await expectContext(page, gid)
+    await expectNodesInsideCanvas()
+    await page.setViewportSize({ width: 1360, height: 900 })
+    await expectNodesInsideCanvas()
+  }
 })

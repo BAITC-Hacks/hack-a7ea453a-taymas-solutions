@@ -209,7 +209,9 @@ export default function GraphCanvas({
     const observer = new ResizeObserver(() => {
       cy.resize()
       const focus = focusRef.current ? cy.getElementById(focusRef.current) : undefined
-      if (focus?.length) cy.center(focus)
+      // Preserve the complete visible neighborhood, including asymmetric flows.
+      // Centering only the client after fit moves distant neighbors off-canvas.
+      if (focus?.length) cy.fit(focus.closedNeighborhood(), 58)
       else cy.fit(cy.elements(), layoutFocusId ? 58 : 50)
     })
     observer.observe(host.current)
