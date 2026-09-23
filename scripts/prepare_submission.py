@@ -25,6 +25,8 @@ import zipfile
 
 CSV_FILES = ('nodes_roles.csv', 'clusters.csv', 'top_nodes.csv', 'edge_table.csv')
 INPUT_FILES = ('nodes.parquet', 'edges.parquet', 'transactions.parquet')
+CHECK_NAMES = ('python-tests', 'pipeline-repro', 'pipeline-contract', 'copilot-evaluation',
+               'three-demo-cases', 'frontend-install', 'frontend-tests', 'frontend-build')
 PAYLOAD_FILES = (*CSV_FILES, 'run_report.md', 'run_report.json', 'acceptance_report.md',
                  'acceptance_report.json', 'demo_cases.md', 'demo_cases.json', 'START_HERE.md',
                  'checks/evaluation.md', 'checks/evaluation.json',
@@ -176,7 +178,10 @@ def render_report(report: dict) -> str:
         log = f'[{check["log"]}]({check["log"]})' if check.get('log') else md(check.get('reason', ''))
         lines.append(f'| {check["name"]} | {check["status"]} | {check.get("seconds", "—")} | {log} |')
     lines += ['', '## Проверенные команды', '']
-    lines += [f'- `{check["command"]}`' for check in report['checks'] if check.get('command')]
+    lines += [f'- Из `{check.get("directory", ".")}`: `{check["command"]}`'
+              for check in report['checks'] if check.get('command')]
+    lines += ['', '## Окружение', '']
+    lines += [f'- {name}: {md(value)}' for name, value in report['environment'].items()]
     lines += ['', '## Границы проверки', ''] + [f'- {note}' for note in report['unverified']]
     lines += ['', '## Входной набор (SHA-256)', '']
     lines += [f'- `{name}`: `{sha}`' for name, sha in report['input_sha256'].items()]
@@ -239,13 +244,17 @@ def build(args) -> int:
     packet = dest / 'packet'
     (packet / 'checks').mkdir(parents=True)
     report = {'schema_version': 1, 'commit': commit, 'generated_at': datetime.now(timezone.utc).isoformat(),
-              'status': 'failed', 'checks': [], 'input_sha256': {}, 'unverified': UNVERIFIED,
+              'status': 'failed', 'checks': [{'name': name, 'status': 'not_run', 'reason': 'Не выполнено'}
+                                           for name in CHECK_NAMES],
+              'input_sha256': {}, 'unverified': UNVERIFIED,
               'environment': {'python': platform.python_version(), 'platform': platform.platform()},
               'runner_sha256': digest(Path(__file__))}
     env = dict(os.environ, NVIDIA_API_KEY='', NVIDIA_MODEL='', CI='1', NO_COLOR='1', PYTHONDONTWRITEBYTECODE='1')
     env.pop('FORCE_COLOR', None)
     env.pop('PYTHONPATH', None)
     env.pop('PYTHONHOME', None)
+    def record_check(record):
+        report['checks'][CHECK_NAMES.index(record['name'])] = record
     try:
         with tempfile.TemporaryDirectory(prefix='taymas-acceptance-') as temp:
             work = Path(temp)
@@ -256,14 +265,23 @@ def build(args) -> int:
             for name in INPUT_FILES:
                 shutil.copyfile(data / name, work / 'data' / name)
                 report['input_sha256'][name] = digest(work / 'data' / name)
+            for program in ('node', 'npm'):
+                try:
+                    report['environment'][program] = subprocess.check_output(
+                        [shutil.which(program) or program, '--version'], env=env, text=True, timeout=10).strip()
+                except (OSError, subprocess.SubprocessError):
+                    report['environment'][program] = 'недоступно'
             def run(name, command, cwd=work):
                 record = stage(name, command, cwd, packet, env)
-                report['checks'].append(record)
+                record['directory'] = str(cwd.relative_to(work))
+                record_check(record)
                 return record['status'] == 'passed'
             run('python-tests', [sys.executable, '-m', 'pytest', '-q', 'tests'])
             pipeline_ok = run('pipeline-repro', [sys.executable, '-m', 'money_graph', '--data', 'data', '--out', 'out', '--check-repro'])
             if pipeline_ok:
                 out = work / 'out'
+                record_check({'name': 'pipeline-contract', 'status': 'failed',
+                              'reason': 'Проверка числа узлов, времени, повторяемости и хешей'})
                 details = json.loads((out / 'run_report.json').read_text())
                 if details['input']['nodes'] != args.expected_nodes:
                     raise ValueError(f'Expected {args.expected_nodes} nodes, got {details["input"]["nodes"]}')
@@ -275,24 +293,23 @@ def build(args) -> int:
                     shutil.copyfile(out / name, packet / name)
                 for name in ('run_report.md', 'run_report.json'):
                     shutil.copyfile(out / name, packet / name)
+                record_check({'name': 'pipeline-contract', 'status': 'passed',
+                              'reason': f'{args.expected_nodes} узлов; время и SHA-256 соответствуют отчёту'})
                 run('copilot-evaluation', [sys.executable, '-m', 'agent_tools.evaluation', '--out', 'out',
                     '--answerer', 'agent_orchestrator.orchestrator:answer_case', '--report', str(packet / 'checks/evaluation.md')])
                 cases = build_cases(out, commit)
                 write_json(packet / 'demo_cases.json', cases)
                 (packet / 'demo_cases.md').write_text(render_cases(cases, commit), encoding='utf-8')
-                report['checks'].append({'name': 'three-demo-cases',
+                record_check({'name': 'three-demo-cases',
                     'status': 'passed' if all(c['available'] for c in cases) else 'failed',
                     'reason': ' / '.join(f'{c["id"]}: {c["available"]}' for c in cases)})
-            else:
-                report['checks'].append({'name': 'copilot-evaluation-and-cases', 'status': 'not_run', 'reason': 'Pipeline failed'})
             npm = shutil.which('npm') or 'npm'
             if run('frontend-install', [npm, 'ci', '--ignore-scripts'], work / 'frontend'):
                 run('frontend-tests', [npm, 'test'], work / 'frontend')
                 run('frontend-build', [npm, 'run', 'build'], work / 'frontend')
-            else:
-                report['checks'].append({'name': 'frontend-tests-and-build', 'status': 'not_run', 'reason': 'npm ci failed'})
             report['status'] = 'passed' if all(c['status'] == 'passed' for c in report['checks']) else 'failed'
     except Exception as exc:
+        report['status'] = 'failed'
         report['error'] = f'{type(exc).__name__}: {exc}'
     write_json(packet / 'acceptance_report.json', report)
     (packet / 'acceptance_report.md').write_text(render_report(report), encoding='utf-8')

@@ -1,7 +1,5 @@
 """The delivery packet preserves identifiers, traceability and failure status."""
 import csv
-import json
-from pathlib import Path
 import sys
 import zipfile
 
