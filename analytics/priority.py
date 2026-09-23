@@ -8,7 +8,8 @@ priority_score: кого из клиентов смотреть первым и 
   collect  — сбор: сколько разных плательщиков сверх первого
   fanout   — рассылка: сколько разных получателей сверх первого
   flow     — транзит или оседание: ушли ли полученные деньги дальше
-             (out ≈ in) или остались у узла, собравшего их от многих
+             (out ≈ in) или остались у узла, собравшего их от многих;
+             если отправлено больше, чем видно на входе, не оценивается
   seed     — прямая связь с seed: от скольких разных seed узел получил деньги
   bridge   — мост: со сколькими другими кластерами узел обменивается деньгами
   volume   — объём: max(вход, выход) в тенге
@@ -42,7 +43,7 @@ WEIGHTS = {
 }
 BOUNDARY_FACTOR = 0.8       # множитель для узлов, где обход остановился (4-е колено без исходящих)
 MAX_DEPTH = 4               # глубина обхода из DATA_README: узлы этого колена не раскрывались
-MIN_EDGE_KZT = 5_000        # порог выгрузки: переводы меньше в данные не попали
+MIN_TX_KZT = 5_000          # порог выгрузки: переводы меньше в данные не попали
 SCORE_DECIMALS = 4          # округление; при равенстве порядок — по gid
 WHY_MIN_CONTRIB = 0.02      # компоненты с меньшим вкладом не упоминаются в why
 WHY_MAX_PARTS = 3
@@ -90,6 +91,13 @@ def _features(edges: pd.DataFrame, nodes: pd.DataFrame,
 
     # обход остановился на узле: исходящие не выгружались, out_deg == 0 ничего не значит
     f["truncated"] = (f.depth >= MAX_DEPTH) & (f.out_deg == 0)
+
+    # граф собран по исходящим: входящие видны только от клиентов выборки, исходящие
+    # раскрытых узлов — полностью. Отправил больше, чем видно на входе, — значит, часть
+    # входящих не попала в выгрузку (как у seed). Превышение меньше одного перевода
+    # ниже порога выгрузки считается погрешностью.
+    f["unseen_in_kzt"] = np.where(~f.is_seed & ~f.truncated & (f.out_kzt > f.in_kzt + MIN_TX_KZT),
+                                  f.out_kzt - f.in_kzt, 0.0)
     return f
 
 
@@ -102,21 +110,20 @@ def _components(f: pd.DataFrame) -> pd.DataFrame:
     c["collect"] = _log_scale((f.in_deg - 1).clip(lower=0))
     c["fanout"] = _log_scale((f.out_deg - 1).clip(lower=0))
 
-    # транзит / оседание оценивается только там, где видны обе стороны:
-    # у seed вход занижен выгрузкой, у обрезанных узлов нет данных о выходе
-    observed = ~f.is_seed & ~f.truncated & (f.in_kzt > 0)
-    in_kzt = f.in_kzt.where(f.in_kzt > 0)
-    balance = np.minimum(f.in_kzt, f.out_kzt) / np.maximum(f.in_kzt, f.out_kzt).where(lambda s: s > 0)
-    retained = (1 - f.out_kzt / in_kzt).clip(lower=0)
+    # транзит / оседание оценивается только там, где видны обе стороны: у seed вход
+    # занижен выгрузкой, у обрезанных узлов нет данных о выходе, а если исходящие
+    # больше видимых входящих, вход неполон и out/in ничего не говорит
+    observed = ~f.is_seed & ~f.truncated & (f.in_kzt > 0) & (f.unseen_in_kzt == 0)
+    forwarded = (f.out_kzt / f.in_kzt.where(f.in_kzt > 0)).clip(upper=1)
     # оседание засчитывается пропорционально сбору: деньги одного плательщика,
     # оставшиеся у получателя, — обычный платёж, а не консолидация
-    consolidation = retained * c["collect"]
-    c["flow"] = np.where(observed, np.maximum(balance, consolidation).fillna(0.0), 0.0)
-    c["flow_is_transit"] = observed & (balance.fillna(0) >= consolidation.fillna(0))
+    consolidation = (1 - forwarded) * c["collect"]
+    c["flow"] = np.where(observed, np.maximum(forwarded, consolidation).fillna(0.0), 0.0)
+    c["flow_is_transit"] = observed & (forwarded.fillna(0) >= consolidation.fillna(0))
 
     c["seed"] = _log_scale(f.seed_payers)
     c["bridge"] = _log_scale(f.bridge_clusters)
-    c["volume"] = _log_scale(np.maximum(f.in_kzt, f.out_kzt) / MIN_EDGE_KZT)
+    c["volume"] = _log_scale(np.maximum(f.in_kzt, f.out_kzt) / MIN_TX_KZT)
     return c
 
 
@@ -126,19 +133,33 @@ def _kzt(x: float) -> str:
     return f"{x / 1e6:.1f} млн KZT" if x >= 1e6 else f"{x / 1e3:.0f} тыс. KZT"
 
 
+def _n(n: int, one: str, few: str, many: str) -> str:
+    """Число с существительным в нужной форме: 1 перевод, 2 перевода, 5 переводов."""
+    if n % 10 == 1 and n % 100 != 11:
+        return f"{n} {one}"
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return f"{n} {few}"
+    return f"{n} {many}"
+
+
 def _phrase(k: str, r) -> str:
     if k == "collect":
-        return f"сбор: {r.in_deg} плательщ., {r.in_tx} перев."
+        return (f"получает от {_n(r.in_deg, 'плательщика', 'плательщиков', 'плательщиков')}, "
+                f"{_n(r.in_tx, 'перевод', 'перевода', 'переводов')}")
     if k == "fanout":
-        return f"рассылка: {r.out_deg} получат., {r.out_tx} перев."
+        return (f"отправляет {_n(r.out_deg, 'получателю', 'получателям', 'получателям')}, "
+                f"{_n(r.out_tx, 'перевод', 'перевода', 'переводов')}")
     if k == "flow":
-        if r.flow_is_transit:
-            return f"транзит: отправил {r.out_kzt / r.in_kzt:.0%} полученного"
-        return f"оседание: оставил {1 - r.out_kzt / r.in_kzt:.0%} из {_kzt(r.in_kzt)}"
+        forwarded = min(r.out_kzt / r.in_kzt, 1.0)
+        if not r.flow_is_transit:
+            return f"оставил у себя {1 - forwarded:.0%} из {_kzt(r.in_kzt)}"
+        if forwarded == 1.0:
+            return "переслал дальше всё полученное"
+        return f"переслал дальше {forwarded:.0%} полученного"
     if k == "seed":
-        return f"получил от {r.seed_payers} seed"
+        return f"получил напрямую от {_n(r.seed_payers, 'seed-клиента', 'seed-клиентов', 'seed-клиентов')}"
     if k == "bridge":
-        return f"связан с {r.bridge_clusters} др. кластерами"
+        return f"связан с {_n(r.bridge_clusters, 'другим кластером', 'другими кластерами', 'другими кластерами')}"
     return f"оборот {_kzt(max(r.in_kzt, r.out_kzt))}"
 
 
@@ -152,7 +173,9 @@ def _why(r) -> str:
     if r.truncated:
         parts.append(f"4-е колено, исходящие не выгружались: ×{BOUNDARY_FACTOR}")
     elif r.is_seed:
-        parts.append("seed: вход занижен выгрузкой, транзит не оценён")
+        parts.append("seed: входящие занижены выгрузкой")
+    elif r.unseen_in_kzt > 0:
+        parts.append(f"вход неполный: отправлено на {_kzt(r.unseen_in_kzt)} больше полученного")
     return "; ".join(parts)
 
 

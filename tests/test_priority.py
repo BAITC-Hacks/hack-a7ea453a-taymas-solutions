@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analytics.priority import BOUNDARY_FACTOR, WEIGHTS, run, weight_sensitivity
+from analytics.priority import BOUNDARY_FACTOR, MIN_TX_KZT, WEIGHTS, _n, run, weight_sensitivity
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 CONTRIB = [f"contrib_{k}" for k in WEIGHTS]
@@ -67,13 +67,29 @@ def test_toy_consolidation(toy_result):
     assert r.contrib_collect == WEIGHTS["collect"]      # максимум плательщиков в графе
     # оставил 280 из 300 тыс. при максимальном сборе → 0.15 × 0.933
     assert r.contrib_flow == pytest.approx(WEIGHTS["flow"] * 280 / 300, abs=1e-4)
-    assert "4 плательщ." in r.why and "2 seed" in r.why
+    assert "получает от 4 плательщиков, 5 переводов" in r.why
+    assert "получил напрямую от 2 seed-клиентов" in r.why
     assert toy_result.priority_score.idxmax() == 10
 
 
 def test_toy_transit(toy_result):
     assert toy_result.loc[20].contrib_flow == WEIGHTS["flow"]
-    assert "транзит: отправил 100%" in toy_result.loc[20].why
+    assert "переслал дальше всё полученное" in toy_result.loc[20].why
+
+
+@pytest.mark.parametrize("excess, transit", [(MIN_TX_KZT - 1_000, True), (MIN_TX_KZT + 1_000, False)])
+def test_toy_sent_more_than_received(excess, transit):
+    # 30 получил 20 тыс.; отправил больше — превышение меньше одного перевода
+    # ниже порога выгрузки считается погрешностью, больше — неполным входом
+    edges, nodes, clusters = toy()
+    edges.loc[(edges.src == 30) & (edges.dst == 40), "sum_kzt"] = 20_000 + excess
+    r = run(edges, nodes, clusters).set_index("gid").loc[30]
+    if transit:
+        assert r.contrib_flow == WEIGHTS["flow"]
+        assert "переслал дальше всё полученное" in r.why and "вход неполный" not in r.why
+    else:
+        assert r.contrib_flow == 0
+        assert "вход неполный: отправлено на 6 тыс. KZT больше полученного" in r.why
 
 
 def test_toy_boundary_node(toy_result):
@@ -98,6 +114,13 @@ def test_toy_does_not_depend_on_gid_values(toy_result):
     back = moved.rename(index={v: k for k, v in relabel.items()})
     cols = ["priority_score"] + CONTRIB + ["boundary_factor"]
     pd.testing.assert_frame_equal(back.loc[toy_result.index, cols], toy_result[cols])
+
+
+def test_plural_forms():
+    forms = ("перевод", "перевода", "переводов")
+    assert [_n(k, *forms) for k in (1, 2, 5, 11, 12, 21, 22, 25, 111)] == [
+        "1 перевод", "2 перевода", "5 переводов", "11 переводов", "12 переводов",
+        "21 перевод", "22 перевода", "25 переводов", "111 переводов"]
 
 
 def test_toy_more_payers_raise_collect():
@@ -162,3 +185,16 @@ def test_top20_stable_under_weight_changes(result):
     s = weight_sensitivity(result)
     assert s["random_mean"] >= 0.8
     assert min(s["drop"].values()) >= 12
+
+
+@real
+def test_no_transit_credit_when_sent_more_than_seen(inputs, result):
+    edges, nodes, _ = inputs
+    in_kzt = edges.groupby("dst").sum_kzt.sum()
+    out_kzt = edges.groupby("src").sum_kzt.sum()
+    over = out_kzt.sub(in_kzt, fill_value=0) > MIN_TX_KZT
+    gids = set(over[over].index) - set(nodes.gid[nodes.is_seed])
+    r = result[result.gid.isin(gids)]
+    assert len(r) > 300
+    assert (r.contrib_flow == 0).all()
+    assert r.why.str.contains("вход неполный").all()
