@@ -20,6 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY analytics/ analytics/
 COPY agent_tools/ agent_tools/
+COPY agent_orchestrator/ agent_orchestrator/
 COPY money_graph/ money_graph/
 
 RUN useradd --create-home --uid 10001 app \

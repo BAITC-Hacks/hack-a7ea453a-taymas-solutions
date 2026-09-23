@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import GraphCanvas from './GraphCanvas'
+import CopilotPanel from './copilot/CopilotPanel'
+import type { CopilotAnswer } from './copilot/api'
+import { answerHighlights, includeEvidence } from './copilot/graph'
 import { DataLoadError, loadData } from './data'
 import { capGraph, filterNodes, findNodeByGid, isBoundaryNode, nodeNeighbors, summarizeNodeFlows } from './filters'
 import { ROLE_COLORS, ROLES, type FilterState, type GraphData, type NodeRecord } from './types'
@@ -17,6 +20,16 @@ export default function App() {
   const [filters, setFilters] = useState(initialFilters)
   const [selectedId, setSelectedId] = useState<string>()
   const [hoveredId, setHoveredId] = useState<string>()
+  const [railTab, setRailTab] = useState<'copilot' | 'node'>('copilot')
+  const [copilotAnswer, setCopilotAnswer] = useState<CopilotAnswer | null>(null)
+  const [focused, setFocused] = useState<{ gid: string; sequence: number }>()
+  const navigateFromCopilot = useCallback((gid: string) => {
+    setSelectedId(gid); setFocused(previous => ({ gid, sequence: (previous?.sequence ?? 0) + 1 })); setRailTab('node')
+  }, [])
+  const selectGraphNode = useCallback((gid: string) => { setSelectedId(gid); setRailTab('node') }, [])
+  const receiveAnswer = useCallback((answer: CopilotAnswer | null) => {
+    setCopilotAnswer(answer); setFocused(undefined)
+  }, [])
 
   const fetchData = useCallback(async (source = '/out') => {
     setLoading(true); setError(undefined)
@@ -28,7 +41,9 @@ export default function App() {
 
   const topIds = useMemo(() => new Set(data?.topNodes.map((node) => node.gid) ?? []), [data])
   const filteredNodes = useMemo(() => data ? filterNodes(data.nodes, filters, topIds) : [], [data, filters, topIds])
-  const graph = useMemo(() => data ? capGraph(filteredNodes, data.edges, filters.limit) : { nodes: [], edges: [] }, [data, filteredNodes, filters.limit])
+  const baseGraph = useMemo(() => data ? capGraph(filteredNodes, data.edges, filters.limit) : { nodes: [], edges: [] }, [data, filteredNodes, filters.limit])
+  const highlights = useMemo(() => answerHighlights(copilotAnswer), [copilotAnswer])
+  const graph = useMemo(() => data ? includeEvidence(baseGraph, data, highlights.gids, focused?.gid) : { ...baseGraph, extraCount: 0 }, [baseGraph, data, highlights, focused])
   const byId = useMemo(() => new Map(data?.nodes.map((node) => [node.gid, node]) ?? []), [data])
   const selected = selectedId ? byId.get(selectedId) : undefined
   const selectedNeighbors = selected && data ? nodeNeighbors(selected.gid, data.edges) : { incoming: [], outgoing: [] }
@@ -68,10 +83,16 @@ export default function App() {
             <label className="field-label" htmlFor="limit">Лимит узлов на графе <b>{filters.limit}</b></label><input className="range" id="limit" type="range" min="20" max="300" step="10" value={filters.limit} onChange={(event) => setFilter('limit', Number(event.target.value))} />
             <div className="legend"><p className="field-label">Роли</p>{ROLES.map((role) => <div className="legend-item" key={role}><i style={{ background: ROLE_COLORS[role] }} /> <span>{role}</span></div>)}<div className="legend-item"><i className="seed-ring" /> <span>seed-клиент</span></div></div>
           </aside>
-          <section className="graph-panel panel"><div className="graph-toolbar"><div><p className="eyebrow">ТРАНЗАКЦИОННАЯ СЕТЬ</p><h2>Направление потоков</h2></div><div className="graph-hint"><span className="arrow-key">→</span> стрелка показывает получателя</div></div><div className="graph-wrap"><GraphCanvas nodes={graph.nodes} edges={graph.edges} selectedId={selectedId} onSelect={setSelectedId} onHover={setHoveredId} />{hovered && <div className="hover-card"><strong>{hovered.gid}</strong><span>{hovered.role} · priority {hovered.priority_score.toFixed(2)}</span></div>}{!graph.nodes.length && <div className="empty-graph">{searchHasNoMatches ? `GID «${searchQuery}» не найден в текущей выгрузке` : 'По текущим фильтрам узлы не найдены'}</div>}</div><div className="graph-footer"><span>Кликните узел для подробностей</span><span>Колесо мыши — масштаб · drag — перемещение</span></div></section>
-          <aside className="inspector panel">{selected ? <NodeInspector node={selected} incoming={selectedNeighbors.incoming} outgoing={selectedNeighbors.outgoing} flowSummary={selectedFlowSummary!} onSelectNeighbor={setSelectedId} onClose={() => setSelectedId(undefined)} /> : <div className="inspector-empty"><div className="crosshair">⊹</div><h2>{searchHasNoMatches ? 'GID не найден' : 'Выберите узел'}</h2><p>{searchHasNoMatches ? `В выгрузке нет узла с GID «${searchQuery}». Проверьте значение или сбросьте поиск.` : 'Нажмите на точку графа, чтобы увидеть роль, evidence и денежные потоки.'}</p><div className="tip"><span>TIP</span> Используйте поиск по GID, если нужен конкретный клиент.</div></div>}</aside>
+          <section className="graph-panel panel"><div className="graph-toolbar"><div><p className="eyebrow">ТРАНЗАКЦИОННАЯ СЕТЬ</p><h2>Направление потоков</h2></div><div className="graph-hint"><span className="arrow-key">→</span> стрелка показывает получателя</div></div>{(copilotAnswer || focused) && <div className="graph-evidence-note"><span>{copilotAnswer ? 'Факты помощника подсвечены' : 'Выбранный узел показан на графе'}{graph.extraCount ? ` · ещё ${graph.extraCount} узл. вне фильтров и лимита` : ''}</span><button type="button" onClick={() => { setCopilotAnswer(null); setFocused(undefined) }}>Убрать подсветку</button></div>}<div className="graph-wrap"><GraphCanvas nodes={graph.nodes} edges={graph.edges} selectedId={selectedId} focusId={focused?.gid} focusSequence={focused?.sequence} highlightedGids={highlights.gids} highlightedEdges={highlights.edges} onSelect={selectGraphNode} onHover={setHoveredId} />{hovered && <div className="hover-card"><strong>{hovered.gid}</strong><span>{hovered.role} · priority {hovered.priority_score.toFixed(2)}</span></div>}{!graph.nodes.length && <div className="empty-graph">{searchHasNoMatches ? `GID «${searchQuery}» не найден в текущей выгрузке` : 'По текущим фильтрам узлы не найдены'}</div>}</div><div className="graph-footer"><span>Кликните узел для подробностей</span><span>Колесо мыши — масштаб · drag — перемещение</span></div></section>
+          <aside className="inspector panel investigation-rail">
+            <div className="investigation-tabs" role="tablist" aria-label="Материалы расследования">
+              <button type="button" role="tab" id="copilot-tab" aria-selected={railTab === 'copilot'} aria-controls="copilot-view" onClick={() => setRailTab('copilot')}>Помощник</button>
+              <button type="button" role="tab" id="node-tab" aria-selected={railTab === 'node'} aria-controls="node-view" onClick={() => setRailTab('node')}>Карточка узла</button>
+            </div>
+            <div className="investigation-content" role="tabpanel" id="copilot-view" aria-labelledby="copilot-tab" hidden={railTab !== 'copilot'}><CopilotPanel key={data.source} data={data} selectedId={selectedId} onNavigate={navigateFromCopilot} onAnswer={receiveAnswer} /></div>
+            <div className="investigation-content inspector-content" role="tabpanel" id="node-view" aria-labelledby="node-tab" hidden={railTab !== 'node'}>{selected ? <NodeInspector node={selected} incoming={selectedNeighbors.incoming} outgoing={selectedNeighbors.outgoing} flowSummary={selectedFlowSummary!} onSelectNeighbor={setSelectedId} onClose={() => setSelectedId(undefined)} /> : <div className="inspector-empty"><div className="crosshair">⊹</div><h2>{searchHasNoMatches ? 'GID не найден' : 'Выберите узел'}</h2><p>{searchHasNoMatches ? `В выгрузке нет узла с GID «${searchQuery}». Проверьте значение или сбросьте поиск.` : 'Нажмите на точку графа, чтобы увидеть роль, evidence и денежные потоки.'}</p><div className="tip"><span>TIP</span> Используйте поиск по GID, если нужен конкретный клиент.</div></div>}</div></aside>
         </section>
-        <section className="priority-panel panel"><div className="panel-heading"><div><p className="eyebrow">ПЕРВЫЕ СИГНАЛЫ</p><h2>Верхние приоритеты</h2></div><span className="muted">{data.topNodes.length} узлов из top_nodes.csv</span></div><div className="priority-table"><div className="table-head"><span>RANK</span><span>GID</span><span>ROLE</span><span>SCORE</span><span>ПОЧЕМУ</span></div>{data.topNodes.slice(0, 8).map((item) => <button className="table-row" key={item.gid} onClick={() => setSelectedId(item.gid)}><span className="rank">{String(item.rank).padStart(2, '0')}</span><span className="gid">{item.gid}</span><span className="role-pill" style={{ color: ROLE_COLORS[item.role] }}>{item.role}</span><span className="score">{item.priority_score.toFixed(3)}</span><span className="why">{item.priority_why || item.why}</span></button>)}</div></section>
+        <section className="priority-panel panel"><div className="panel-heading"><div><p className="eyebrow">ПЕРВЫЕ СИГНАЛЫ</p><h2>Верхние приоритеты</h2></div><span className="muted">{data.topNodes.length} узлов из top_nodes.csv</span></div><div className="priority-table"><div className="table-head"><span>RANK</span><span>GID</span><span>ROLE</span><span>SCORE</span><span>ПОЧЕМУ</span></div>{data.topNodes.slice(0, 8).map((item) => <button className="table-row" key={item.gid} onClick={() => navigateFromCopilot(item.gid)}><span className="rank">{String(item.rank).padStart(2, '0')}</span><span className="gid">{item.gid}</span><span className="role-pill" style={{ color: ROLE_COLORS[item.role] }}>{item.role}</span><span className="score">{item.priority_score.toFixed(3)}</span><span className="why">{item.priority_why || item.why}</span></button>)}</div></section>
       </>}
     </main>
   </div>

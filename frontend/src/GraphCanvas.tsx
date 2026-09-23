@@ -2,16 +2,21 @@ import { useEffect, useRef } from 'react'
 import cytoscape, { type Core, type ElementDefinition } from 'cytoscape'
 import type { EdgeRecord, NodeRecord } from './types'
 import { ROLE_COLORS } from './types'
+import { edgeKey } from './copilot/graph'
 
 interface Props {
   nodes: NodeRecord[]
   edges: EdgeRecord[]
   selectedId?: string
+  focusId?: string
+  focusSequence?: number
+  highlightedGids?: string[]
+  highlightedEdges?: string[]
   onSelect: (gid: string) => void
   onHover: (gid?: string) => void
 }
 
-export default function GraphCanvas({ nodes, edges, selectedId, onSelect, onHover }: Props) {
+export default function GraphCanvas({ nodes, edges, selectedId, focusId, focusSequence, highlightedGids, highlightedEdges, onSelect, onHover }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const cyRef = useRef<Core | null>(null)
 
@@ -21,7 +26,7 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect, onHove
     const elements: ElementDefinition[] = [
       ...nodes.map((node) => ({ data: { id: node.gid, label: node.gid.slice(-6), role: node.role, color: ROLE_COLORS[node.role] ?? ROLE_COLORS.peripheral, priority: node.priority_score, seed: node.is_seed } })),
       ...edges.map((edge, index) => ({
-        data: { id: `edge-${index}-${edge.src}-${edge.dst}`, source: edge.src, target: edge.dst, label: edge.sum_kzt, width: Math.max(1, Math.min(5, Math.log10(edge.sum_kzt + 1) - 2)), curve: edge.src < edge.dst ? 32 : -32 },
+        data: { id: `edge-${index}-${edge.src}-${edge.dst}`, claimKey: edgeKey(edge.src, edge.dst), source: edge.src, target: edge.dst, label: edge.sum_kzt, width: Math.max(1, Math.min(5, Math.log10(edge.sum_kzt + 1) - 2)), curve: edge.src < edge.dst ? 32 : -32 },
       })),
     ]
     const cy = cytoscape({
@@ -32,6 +37,8 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect, onHove
         { selector: 'node:selected', style: { 'border-width': 4, 'border-color': '#ffffff', 'overlay-color': '#ffffff', 'overlay-opacity': 0.12 } },
         { selector: 'edge', style: { width: 'data(width)', 'line-color': '#6c7f9d55', 'target-arrow-color': '#90a4c4', 'target-arrow-shape': 'triangle', 'curve-style': 'bezier', 'control-point-distance': 'data(curve)', 'control-point-weight': 0.5, opacity: 0.66, 'arrow-scale': 0.72 } },
         { selector: 'edge:selected', style: { 'line-color': '#ffffff', 'target-arrow-color': '#ffffff', opacity: 1, width: 2.5 } },
+        { selector: 'node.copilot-evidence', style: { 'border-width': 4, 'border-color': '#70e1c8', 'overlay-color': '#70e1c8', 'overlay-opacity': 0.12 } },
+        { selector: 'edge.copilot-evidence', style: { 'line-color': '#70e1c8', 'target-arrow-color': '#70e1c8', opacity: 1, width: 3 } },
       ] as any,
       layout: { name: 'cose', animate: false, fit: true, padding: 44, nodeRepulsion: 7000, idealEdgeLength: 100, edgeElasticity: 80 },
     })
@@ -47,7 +54,25 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect, onHove
     if (!cy) return
     cy.nodes().unselect()
     if (selectedId) cy.getElementById(selectedId).select()
-  }, [selectedId])
+  }, [selectedId, nodes, edges])
+
+  useEffect(() => {
+    const cy = cyRef.current
+    if (!cy) return
+    cy.elements().removeClass('copilot-evidence')
+    for (const gid of highlightedGids ?? []) cy.getElementById(gid).addClass('copilot-evidence')
+    const citedEdges = new Set(highlightedEdges)
+    cy.edges().filter(edge => citedEdges.has(edge.data('claimKey'))).addClass('copilot-evidence')
+  }, [highlightedGids, highlightedEdges, nodes, edges])
+
+  useEffect(() => {
+    const cy = cyRef.current
+    if (!cy || !focusId) return
+    const node = cy.getElementById(focusId)
+    if (node.empty()) return
+    cy.stop()
+    cy.animate({ center: { eles: node }, zoom: 1.6 }, { duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 250 })
+  }, [focusId, focusSequence, nodes, edges])
 
   return <div ref={host} className="graph-canvas" role="img" aria-label="Направленный граф транзакционной сети" />
 }
