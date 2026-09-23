@@ -105,6 +105,14 @@ def validate_gid_bounds(frames):
                 if not numeric.is_finite() or not -(2**63) <= numeric <= 2**63 - 1:
                     raise UploadError(f"{name}.parquet: поле {column} содержит идентификатор вне диапазона int64 "
                                       "(-9223372036854775808…9223372036854775807).")
+                # pandas may route decimal/exponent strings through float and
+                # silently round a valid 18-digit identifier before int64 cast.
+                if (not isinstance(value, (Integral, Real, str))
+                        or (isinstance(value, str) and not re.fullmatch(r"[+-]?\d+", value.strip()))
+                        or (isinstance(value, Real) and not isinstance(value, Integral)
+                            and abs(numeric) > 2**53 - 1)):
+                    raise UploadError(f"{name}.parquet: поле {column} требует точный целый int64; "
+                                      "используйте целочисленный тип или строку из цифр без дробной части и экспоненты.")
 
 
 @dataclass(frozen=True)

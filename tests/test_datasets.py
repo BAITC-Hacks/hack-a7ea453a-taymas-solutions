@@ -213,6 +213,10 @@ def test_invalid_parquet_and_contract_preserve_previous(service, variant, expect
     ("nodes", "gid", str(-(2**63) - 1), "str"),
     ("nodes", "gid", str(2**63) + ".0", "str"),
     ("nodes", "gid", float(2**63), "float64"),
+    ("nodes", "gid", "100000000000000001.0", "str"),
+    ("nodes", "gid", "9007199254740993.0", "str"),
+    ("nodes", "gid", "1e17", "str"),
+    ("nodes", "gid", float(2**53), "float64"),
 ])
 def test_id_overflow_rejected_before_coercion(service, table, column, value, dtype):
     server, manager = service

@@ -16,6 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://127.0.0.1:8501")
     parser.add_argument("--data", type=Path, default=Path("data"))
+    parser.add_argument("--compare-out", type=Path, help="Compare CSV bytes with CLI output from the same environment")
     args = parser.parse_args()
     base = args.url.rstrip("/")
 
@@ -60,6 +61,8 @@ def main():
     for name in ("nodes_roles.csv", "clusters.csv", "top_nodes.csv", "edge_table.csv"):
         raw, _ = request(active["files_base"] + "/" + name)
         tables[name] = list(csv.DictReader(io.StringIO(raw.decode("utf-8-sig"))))
+        if args.compare_out:
+            assert raw == (args.compare_out / name).read_bytes(), f"CLI/upload mismatch: {name}"
         print(f"{name}: {len(tables[name])} rows, sha256={hashlib.sha256(raw).hexdigest()}")
     nodes = tables["nodes_roles.csv"]
     assert nodes and len(tables["top_nodes.csv"]) >= min(20, len(nodes))

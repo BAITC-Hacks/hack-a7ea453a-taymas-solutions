@@ -54,7 +54,7 @@ export default function DatasetUpload({ data, onDatasetReady, onLegacy, onInitia
   useEffect(() => {
     const current = new AbortController()
     controller.current = current; locked.current = true
-    setAvailable(null); setPhase('checking'); setError('')
+    setAvailable(null); setPhase('checking'); setError(''); setElapsed(null); setUploadSeconds(null)
     void (async () => {
       let active
       try { active = await getActiveDataset(current.signal) }

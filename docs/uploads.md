@@ -85,8 +85,19 @@ COPILOT_UI_URL=http://127.0.0.1:8501 npm run test:e2e -- upload.spec.ts
 ```
 
 Для входа из другой папки задайте `UPLOAD_DATA_DIR` абсолютным путём.
+Для дополнительного браузерного теста смены данных укажите `UPLOAD_SECOND_DATA_DIR`
+с другим валидным набором; без него этот отдельный сценарий пропускается.
 Браузерный тест меняет активный набор на загруженный. HTTP smoke Docker:
 `./scripts/docker-smoke.sh`. Backend-тесты дополнительно проверяют смену набора,
 сохранение предыдущего при сбое, повторы, детерминизм, лимиты и версию Copilot.
 Совпадение CLI/UI CSV проверяется в одном Python-окружении; разные ОС могут
 различаться в последних знаках float (см. основной README).
+
+Побайтовое сравнение на данных организаторов (локальные API и CLI должны работать
+в одном Python-окружении; порт 5178 — адрес вашего Vite):
+
+```bash
+python -m money_graph --data data --out out --check-repro
+python scripts/upload-smoke.py --url http://127.0.0.1:5178 --data data --compare-out out
+python scripts/upload-smoke.py --url http://127.0.0.1:5178 --data data --compare-out out
+```
