@@ -214,9 +214,31 @@ def run(edges: pd.DataFrame, nodes: pd.DataFrame, node_clusters: pd.DataFrame) -
 
 # ---------------------------------------------------------------- проверка весов
 
+def _score_order(pr: pd.DataFrame, score: np.ndarray) -> np.ndarray:
+    """Индексы по убыванию score, при равенстве — по возрастанию gid."""
+    return np.lexsort((pr.gid.to_numpy(), -score))
+
+
 def _top_gids(pr: pd.DataFrame, score: np.ndarray, top: int) -> set:
-    order = np.lexsort((pr.gid.to_numpy(), -score))
+    order = _score_order(pr, score)
     return set(pr.gid.to_numpy()[order[:top]])
+
+
+def _sensitivity_inputs(pr: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Компоненты из опубликованных вкладов, множитель границы, исходные веса."""
+    comp = np.column_stack([pr[f"contrib_{k}"] / WEIGHTS[k] for k in WEIGHTS])
+    return comp, pr.boundary_factor.to_numpy(), np.array(list(WEIGHTS.values()))
+
+
+def _weighted_scores(comp: np.ndarray, factor: np.ndarray, weights: np.ndarray) -> np.ndarray:
+    return comp @ weights * factor
+
+
+def _weight_scenarios(w0: np.ndarray, spread: float, n_runs: int, seed: int):
+    """Тот же порядок RNG и независимые множители весов для всех диагностик."""
+    rng = np.random.default_rng(seed)
+    for _ in range(n_runs):
+        yield w0 * rng.uniform(1 - spread, 1 + spread, len(w0))
 
 
 def weight_sensitivity(pr: pd.DataFrame, top: int = 20, spread: float = 0.5,
@@ -228,16 +250,13 @@ def weight_sensitivity(pr: pd.DataFrame, top: int = 20, spread: float = 0.5,
     drop — сколько узлов исходного топа остаётся, если компоненту убрать совсем.
     """
     keys = list(WEIGHTS)
-    comp = np.column_stack([pr[f"contrib_{k}"] / WEIGHTS[k] for k in keys])
-    factor = pr.boundary_factor.to_numpy()
-    w0 = np.array([WEIGHTS[k] for k in keys])
-    base = _top_gids(pr, comp @ w0 * factor, top)
+    comp, factor, w0 = _sensitivity_inputs(pr)
+    base = _top_gids(pr, _weighted_scores(comp, factor, w0), top)
 
-    rng = np.random.default_rng(seed)
     overlap = np.array([
-        len(base & _top_gids(pr, comp @ (w0 * rng.uniform(1 - spread, 1 + spread, len(keys))) * factor, top)) / top
-        for _ in range(n_runs)])
-    drop = {k: len(base & _top_gids(pr, comp @ np.where(np.arange(len(keys)) == i, 0, w0) * factor, top))
+        len(base & _top_gids(pr, _weighted_scores(comp, factor, weights), top)) / top
+        for weights in _weight_scenarios(w0, spread, n_runs, seed)])
+    drop = {k: len(base & _top_gids(pr, _weighted_scores(comp, factor, np.where(np.arange(len(keys)) == i, 0, w0)), top))
             for i, k in enumerate(keys)}
     return {"random_mean": float(overlap.mean()), "random_p05": float(np.quantile(overlap, 0.05)),
             "random_min": float(overlap.min()), "drop": drop}

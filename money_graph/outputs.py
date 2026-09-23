@@ -32,7 +32,7 @@ EXTRA = [
     "pagerank", "betweenness", "hub_score", "authority_score", "downstream_reach", "n_seed_upstream",
     "wcc_id", "wcc_size",
     "fast_out_share", "median_lag_days", "sync_payers_max", "max_tx_per_day", "active_days",
-    "n_cycles", "min_cycle_len",
+    "n_cycles", "min_cycle_len", "has_long_cycle",
 ]
 FLOAT_ROUND = 6
 
