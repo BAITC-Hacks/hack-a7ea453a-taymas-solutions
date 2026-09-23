@@ -74,3 +74,14 @@ def test_real_dataset_outputs_come_from_analytics():
     edges, nodes = pd.read_parquet(DATA / "edges.parquet"), pd.read_parquet(DATA / "nodes.parquet")
     _assert_matches_analytics(result, edges, nodes, top_n=TOP_N)
     assert any(c.startswith("top_nodes: аудит PAN-37") for c in result.checks)
+
+
+@pytest.mark.skipif(not HAS_DATA, reason="нет data/edges.parquet — распакуйте архив данных в ./data")
+def test_real_dataset_role_and_priority_agree_on_incomplete_inflow():
+    # в одной строке nodes_roles.csv роль и priority_why не должны спорить,
+    # полон ли вход: транзит/сбор по роли ⇔ без пометки «вход неполный»
+    nr = run(DATA).tables["nodes_roles.csv"]
+    incomplete = nr.priority_why.str.contains("вход неполный")
+    assert not (incomplete & nr.role_rule.isin(["T1", "T2", "K1"]) & ~nr.is_seed).any()
+    assert not ((nr.role_rule == "P-ext") & (nr.contrib_flow > 0)).any()
+    assert (incomplete == nr.external_inflow_suspected).all()

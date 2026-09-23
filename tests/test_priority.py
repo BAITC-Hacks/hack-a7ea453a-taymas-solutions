@@ -5,7 +5,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analytics.priority import BOUNDARY_FACTOR, MIN_TX_KZT, WEIGHTS, _n, run, weight_sensitivity
+from analytics.priority import (BOUNDARY_FACTOR, INCOMPLETE_INFLOW_RATIO, WEIGHTS, _n, run,
+                               weight_sensitivity)
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 CONTRIB = [f"contrib_{k}" for k in WEIGHTS]
@@ -77,19 +78,26 @@ def test_toy_transit(toy_result):
     assert "переслал дальше всё полученное" in toy_result.loc[20].why
 
 
-@pytest.mark.parametrize("excess, transit", [(MIN_TX_KZT - 1_000, True), (MIN_TX_KZT + 1_000, False)])
-def test_toy_sent_more_than_received(excess, transit):
-    # 30 получил 20 тыс.; отправил больше — превышение меньше одного перевода
-    # ниже порога выгрузки считается погрешностью, больше — неполным входом
+@pytest.mark.parametrize("sent, transit", [(23_000, True), (24_000, True), (25_000, False)])
+def test_toy_sent_more_than_received(sent, transit):
+    # 30 получил 20 тыс.; до 1.2 × входа — ещё транзит с фактическим процентом,
+    # больше — вход неполный, out/in не интерпретируется
     edges, nodes, clusters = toy()
-    edges.loc[(edges.src == 30) & (edges.dst == 40), "sum_kzt"] = 20_000 + excess
+    edges.loc[(edges.src == 30) & (edges.dst == 40), "sum_kzt"] = sent
     r = run(edges, nodes, clusters).set_index("gid").loc[30]
     if transit:
         assert r.contrib_flow == WEIGHTS["flow"]
-        assert "переслал дальше всё полученное" in r.why and "вход неполный" not in r.why
+        assert f"переслал дальше всё полученное ({sent / 20_000:.0%})" in r.why
+        assert "вход неполный" not in r.why
     else:
         assert r.contrib_flow == 0
-        assert "вход неполный: отправлено на 6 тыс. KZT больше полученного" in r.why
+        assert "вход неполный: отправлено на 5 тыс. KZT больше полученного" in r.why
+
+
+def test_incomplete_inflow_ratio_matches_roles():
+    # роль (money_graph) и priority_why должны одинаково решать, что вход неполный
+    from money_graph.config import EXTERNAL_INFLOW_RATIO
+    assert INCOMPLETE_INFLOW_RATIO == EXTERNAL_INFLOW_RATIO
 
 
 def test_toy_boundary_node(toy_result):
@@ -192,7 +200,7 @@ def test_no_transit_credit_when_sent_more_than_seen(inputs, result):
     edges, nodes, _ = inputs
     in_kzt = edges.groupby("dst").sum_kzt.sum()
     out_kzt = edges.groupby("src").sum_kzt.sum()
-    over = out_kzt.sub(in_kzt, fill_value=0) > MIN_TX_KZT
+    over = out_kzt > INCOMPLETE_INFLOW_RATIO * in_kzt.reindex(out_kzt.index, fill_value=0)
     gids = set(over[over].index) - set(nodes.gid[nodes.is_seed])
     r = result[result.gid.isin(gids)]
     assert len(r) > 300
