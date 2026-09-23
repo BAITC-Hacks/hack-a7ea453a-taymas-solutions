@@ -39,6 +39,9 @@ python -m money_graph --data data --out out --check-repro
 
 ## Устройство
 
+Опциональный AML Copilot (PAN-46): [контракт, локальный режим и NVIDIA adapter](docs/agent_orchestrator.md).
+Использует graph tools PAN-45 и verifier PAN-47 после их подключения. Основной пайплайн от него не зависит.
+
 ```
 money_graph/          основной пайплайн: python -m money_graph
   config.py           пороги признаков и ролей с обоснованием
