@@ -13,6 +13,7 @@ import { Icon } from './components/Icon'
 import CopilotPanel from './copilot/CopilotPanel'
 import type { CopilotAnswer } from './copilot/api'
 import { answerHighlights, includeEvidence } from './copilot/graph'
+import ResiliencePanel from './resilience/ResiliencePanel'
 import CaseWorkspace from './casebook/CaseWorkspace'
 import { useCaseFile } from './casebook/useCaseFile'
 
@@ -174,6 +175,9 @@ export default function App() {
         >
           <Icon name="spark" size={21} />
         </button>
+        <a className="rail-link" href="#resilience" aria-label="Устойчивость сети" onClick={() => { setFocusMode(false); setWorkspaceView('network') }}>
+          <Icon name="nodes" size={20} />
+        </a>
         <button className={`rail-link rail-case ${workspaceView === 'case' ? 'active' : ''}`} aria-label="Открыть дело расследования" aria-pressed={workspaceView === 'case'} onClick={openCase}>
           <Icon name="folder" size={21} />{casebook.file.items.length > 0 && <span className="rail-case-count">{casebook.file.items.length}</span>}
         </button>
@@ -299,6 +303,7 @@ export default function App() {
                 </aside>
               </section>
               <PriorityTable rows={data.topNodes} selectedId={selectedId} onSelect={focusNode} />
+              <ResiliencePanel data={data} onSelect={focusNode} />
               <footer className="page-footer" id="methodology">
                 <div className="footer-brand">
                   TAYMAS <span>FINANCIAL INTELLIGENCE</span>
