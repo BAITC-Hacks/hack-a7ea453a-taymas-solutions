@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from analytics.priority import WEIGHTS as PRIORITY_WEIGHTS
+
 from . import config as C
 from .roles import ROLES
 
@@ -17,9 +19,12 @@ CLUSTERS_REQUIRED = ["cluster_id", "n_nodes", "n_seed", "sum_kzt_internal", "top
 TOP_REQUIRED = ["rank", "gid", "role", "priority_score", "why"]
 TOP_MIN_ROWS = 20
 
-# дополнительные колонки: признаки, на которые опирается роль (ТЗ разрешает лишние колонки)
+# дополнительные колонки (ТЗ разрешает лишние): разбор priority_score из analytics.priority —
+# объяснение с числами и вклад каждой компоненты — и признаки, на которые опирается роль
+PRIORITY_EXTRA = ["priority_why", *(f"contrib_{k}" for k in PRIORITY_WEIGHTS), "boundary_factor"]
 EXTRA = [
-    "role_rule", "depth", "is_seed", "boundary", "boundary_depth4", "truncated_by_depth", "out_observable",
+    "role_rule", *PRIORITY_EXTRA,
+    "depth", "is_seed", "boundary", "boundary_depth4", "truncated_by_depth", "out_observable",
     "in_underestimated", "external_inflow_suspected",
     "in_deg", "out_deg", "n_payers", "n_receivers", "n_seed_payers", "n_seed_receivers",
     "in_kzt", "out_kzt", "in_tx", "out_tx", "avg_in_tx_kzt", "avg_out_tx_kzt",
@@ -119,11 +124,15 @@ def validate_outputs(nr: pd.DataFrame, nodes: pd.DataFrame, clusters: pd.DataFra
         check("top_nodes: rank = 1..N", top["rank"].tolist() == list(range(1, len(top) + 1)), "нарушена нумерация")
         check("top_nodes: отсортирован по priority_score", top.priority_score.is_monotonic_decreasing,
               "порядок нарушен")
-        joined = top.merge(nr[["gid", "role", "priority_score"]], on="gid", how="left", suffixes=("", "_nr"))
+        cols = ["gid", "role", "priority_score"] + (["priority_why"] if "priority_why" in nr.columns else [])
+        joined = top.merge(nr[cols], on="gid", how="left", suffixes=("", "_nr"))
         check("top_nodes: gid, role и priority_score согласованы с nodes_roles",
               joined.role_nr.notna().all() and (joined.role == joined.role_nr).all()
               and (joined.priority_score - joined.priority_score_nr).abs().max() < 1e-9,
               "расхождение с nodes_roles")
+        if "priority_why" in joined.columns:
+            differs = int((joined.why != joined.priority_why).sum())
+            check("top_nodes: why совпадает с priority_why в nodes_roles", differs == 0, f"{differs} расхождений")
         check("top_nodes: why заполнен", top.why.notna().all() and top.why.astype(str).str.strip().ne("").all(),
               "есть пустые")
 

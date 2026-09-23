@@ -13,7 +13,7 @@ pip install -r requirements.txt
 python -m money_graph --data data --out out
 ```
 
-Полный прогон занимает около 4 секунд. В `out/` появятся `nodes_roles.csv`, `clusters.csv` и `top_nodes.csv`, вспомогательная таблица рёбер `edge_table.csv` и отчёт о прогоне `run_report.md` / `run_report.json`. До расчётов пайплайн проверяет контракт входных данных, перед записью — схему выгрузок (25 проверок).
+Полный прогон занимает около 4 секунд. В `out/` появятся `nodes_roles.csv`, `clusters.csv` и `top_nodes.csv`, вспомогательная таблица рёбер `edge_table.csv` и отчёт о прогоне `run_report.md` / `run_report.json`. До расчётов пайплайн проверяет контракт входных данных, перед записью — схему выгрузок и аудит топ-листа (27 проверок).
 
 Чтобы заодно проверить воспроизводимость, добавьте `--check-repro`: пайплайн прогонится второй раз и сверит sha256 всех выгрузок.
 
@@ -46,14 +46,16 @@ money_graph/          основной пайплайн: python -m money_graph
   graph.py            таблица направленных рёбер и nx.DiGraph, включая узлы без рёбер
   features.py         признаки узлов
   roles.py            правила ролей, role_score, evidence
-  ranking.py          кластеры (через analytics.clustering) и приоритет
+  ranking.py          подключение analytics: кластеры, priority_score, top_nodes и их аудит
   outputs.py          схема выгрузок и её проверка
   pipeline.py         прогон целиком в памяти: таблицы, байты CSV, время по этапам
   report.py           отчёт о прогоне: время, sha256 выгрузок, роли, проверки
   cli.py              точка входа
 analytics/
   clustering.py       кластеризация и clusters.csv (PAN-35), см. docs/clustering.md
-tests/                python -m pytest tests (входной контракт, smoke пайплайна, кластеры)
+  priority.py         priority_score и why по формуле (PAN-36), см. docs/priority.md
+  top_nodes.py        top_nodes.csv и аудит согласованности (PAN-37), см. docs/top_nodes.md
+tests/                python -m pytest tests (входной контракт, smoke пайплайна, кластеры, приоритет, топ)
 starter/              исходный стартовый код организаторов
 ```
 
@@ -138,9 +140,15 @@ Smoke-проверки в `tests/test_pipeline.py`:
 
 ## Выход: `nodes_roles.csv`
 
-Обязательные колонки по ТЗ: `gid, role, role_score, cluster_id, priority_score, evidence`. За ними идут `role_rule` и все признаки из таблицы выше, чтобы роль любого gid можно было проверить прямо по строке.
+Обязательные колонки по ТЗ: `gid, role, role_score, cluster_id, priority_score, evidence`. За ними идут `role_rule`, разбор приоритета (`priority_why`, `contrib_*`, `boundary_factor`) и все признаки из таблицы выше, чтобы роль и приоритет любого gid можно было проверить прямо по строке.
 
-> `priority_score` (прозрачная взвешенная сумма в [money_graph/ranking.py](money_graph/ranking.py)) и `top_nodes.csv` — временные. Их заменит этап «Приоритет и топ-лист», интерфейс `ranking.py` при этом сохранится.
+`evidence` объясняет роль, `priority_why` — место в очереди на проверку. Оба текста строятся из одних и тех же посчитанных потоков (плательщики, получатели, суммы, переводы), поэтому числа в них совпадают.
+
+## Приоритет и топ-лист
+
+`priority_score` считает [analytics/priority.py](analytics/priority.py): взвешенная сумма шести компонент в [0, 1] (сбор, рассылка, транзит или оседание, прямая связь с seed, мост между кластерами, объём) с множителем 0.8 для узлов 4-го колена без исходящих. Формула, веса, их проверка на устойчивость и разбор топ-2 описаны в [docs/priority.md](docs/priority.md). `priority_why` показывает до трёх компонент с наибольшим вкладом и фактические числа, например: `получает от 24 плательщиков, 58 переводов (+0.25); оборот 8.6 млн KZT (+0.13); …`. Колонки `contrib_*` в сумме, умноженной на `boundary_factor`, дают `priority_score` с точностью до округления.
+
+`top_nodes.csv` строит [analytics/top_nodes.py](analytics/top_nodes.py): первые 30 узлов по `priority_score`, при равенстве — по `gid`. `role` берётся из `nodes_roles.csv`, `why` — это `priority_why` того же узла без изменений. Перед записью аудит пересобирает топ из готового `nodes_roles.csv` и сверяет его построчно, а входящие и исходящие суммы узлов и кластеров сверяет с рёбрами ([docs/top_nodes.md](docs/top_nodes.md)).
 
 ## Быстрая проверка выходных файлов
 
