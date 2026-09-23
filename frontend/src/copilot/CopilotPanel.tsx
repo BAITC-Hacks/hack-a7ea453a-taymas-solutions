@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { GraphData } from '../types'
+import DataRequestPanel from '../investigation/DataRequestPanel'
 import { askCopilot, copilotStatus, MAX_QUESTION, type Availability, type Claim, type CopilotAnswer } from './api'
 import './copilot.css'
 
@@ -91,6 +92,7 @@ export default function CopilotPanel({ data, selectedId, onNavigate, onAnswer }:
       <textarea ref={textarea} id="copilot-question" value={question} maxLength={MAX_QUESTION} disabled={loading || demo} onChange={e => setQuestion(e.target.value)} placeholder="Например: почему этот узел стоит проверить первым?" rows={3} aria-describedby="copilot-question-hint" />
       <div className="copilot-send-row"><span id="copilot-question-hint">{question.length} / {MAX_QUESTION}</span>{loading ? <button type="button" className="copilot-cancel" onClick={cancel}>Отменить</button> : <button type="submit" disabled={!question.trim() || demo} className="copilot-send">Разобрать вопрос <span aria-hidden="true">→</span></button>}</div>
     </form>
+    <DataRequestPanel data={data} gid={selectedId ?? context[0] ?? answer?.candidates[0]?.gid} onNavigate={onNavigate} />
     <div ref={resultPanel} className="copilot-result" aria-live="polite" aria-busy={loading}>
       {loading && <div className="copilot-loading" role="status"><span className="spinner" /><div><strong>Проверяем связи и факты</strong><p>Граф остаётся доступным</p></div></div>}
       {error && <div role="alert" className="copilot-error"><strong>Ответ не показан</strong><p>{error}</p><span>Можно уточнить вопрос и отправить его ещё раз.</span></div>}
