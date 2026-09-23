@@ -17,3 +17,4 @@ frontend/*.tsbuildinfo
 !.env.example
 .mcp.json
 .claude
+.money-graph

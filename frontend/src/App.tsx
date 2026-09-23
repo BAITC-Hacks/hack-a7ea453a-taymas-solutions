@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import DatasetUpload from './DatasetUpload'
 import GraphCanvas from './GraphCanvas'
 import CopilotPanel from './copilot/CopilotPanel'
 import type { CopilotAnswer } from './copilot/api'
@@ -37,7 +38,12 @@ export default function App() {
     catch (caught) { setData(null); setError(caught instanceof DataLoadError ? caught.message : 'Не удалось загрузить выгрузки') }
     finally { setLoading(false) }
   }, [])
-  useEffect(() => { void fetchData() }, [fetchData])
+  const receiveDataset = useCallback((next: GraphData | null) => {
+    setData(next); setLoading(false); setError(undefined); setFilters(initialFilters)
+    setSelectedId(undefined); setHoveredId(undefined); setCopilotAnswer(null); setFocused(undefined); setRailTab('copilot')
+  }, [])
+  const loadLegacy = useCallback(() => fetchData(), [fetchData])
+  const finishInitialCheck = useCallback(() => setLoading(false), [])
 
   const topIds = useMemo(() => new Set(data?.topNodes.map((node) => node.gid) ?? []), [data])
   const filteredNodes = useMemo(() => data ? filterNodes(data.nodes, filters, topIds) : [], [data, filters, topIds])
@@ -67,7 +73,8 @@ export default function App() {
       <div className="header-status"><span className={`status-dot ${data ? 'live' : ''}`} /> {data ? 'локальная выгрузка' : 'ожидание данных'} <span className="source-path">{data?.source ?? '/out'}</span></div>
     </header>
     <main className="content">
-      {loading && <div className="state-card"><div className="spinner" /><h2>Загружаем граф</h2><p>Читаем четыре CSV из локальной папки out/</p></div>}
+      <DatasetUpload data={data} onDatasetReady={receiveDataset} onLegacy={loadLegacy} onInitialCheckDone={finishInitialCheck} />
+      {loading && <div className="state-card"><div className="spinner" /><h2>Загружаем граф</h2><p>Проверяем последний сохранённый результат анализа</p></div>}
       {!loading && error && <div className="state-card error-state"><div className="state-icon">!</div><h2>{error.includes('отсутствуют обязательные колонки') ? 'Ошибка схемы выгрузки' : error.includes('пустой файл') ? 'Пустая выгрузка' : 'Выгрузки не найдены'}</h2><p>{error}. Запустите Python-пайплайн, затем обновите страницу.</p><code>python -m money_graph --data data --out out</code><button className="secondary-button" onClick={() => void fetchData('/fixtures')}>Открыть демо-набор</button></div>}
       {!loading && data && <>
         <section className="stat-row"><Stat label="УЗЛОВ В СЕТИ" value={fmt.format(stats.nodes)} accent="mint" /><Stat label="СВЯЗЕЙ" value={fmt.format(stats.edges)} /><Stat label="КЛАСТЕРОВ" value={fmt.format(stats.clusters)} /><Stat label="SEED-КЛИЕНТОВ" value={fmt.format(stats.seeds)} accent="gold" /><div className="stat-note"><span className="pulse" /> {graph.nodes.length} на экране из {filteredNodes.length} после фильтров</div></section>
@@ -89,7 +96,7 @@ export default function App() {
               <button type="button" role="tab" id="copilot-tab" aria-selected={railTab === 'copilot'} aria-controls="copilot-view" onClick={() => setRailTab('copilot')}>Помощник</button>
               <button type="button" role="tab" id="node-tab" aria-selected={railTab === 'node'} aria-controls="node-view" onClick={() => setRailTab('node')}>Карточка узла</button>
             </div>
-            <div className="investigation-content" role="tabpanel" id="copilot-view" aria-labelledby="copilot-tab" hidden={railTab !== 'copilot'}><CopilotPanel key={data.source} data={data} selectedId={selectedId} onNavigate={navigateFromCopilot} onAnswer={receiveAnswer} /></div>
+            <div className="investigation-content" role="tabpanel" id="copilot-view" aria-labelledby="copilot-tab" hidden={railTab !== 'copilot'}><CopilotPanel key={data.datasetId ?? data.source} data={data} selectedId={selectedId} onNavigate={navigateFromCopilot} onAnswer={receiveAnswer} /></div>
             <div className="investigation-content inspector-content" role="tabpanel" id="node-view" aria-labelledby="node-tab" hidden={railTab !== 'node'}>{selected ? <NodeInspector node={selected} incoming={selectedNeighbors.incoming} outgoing={selectedNeighbors.outgoing} flowSummary={selectedFlowSummary!} onSelectNeighbor={setSelectedId} onClose={() => setSelectedId(undefined)} /> : <div className="inspector-empty"><div className="crosshair">⊹</div><h2>{searchHasNoMatches ? 'GID не найден' : 'Выберите узел'}</h2><p>{searchHasNoMatches ? `В выгрузке нет узла с GID «${searchQuery}». Проверьте значение или сбросьте поиск.` : 'Нажмите на точку графа, чтобы увидеть роль, evidence и денежные потоки.'}</p><div className="tip"><span>TIP</span> Используйте поиск по GID, если нужен конкретный клиент.</div></div>}</div></aside>
         </section>
         <section className="priority-panel panel"><div className="panel-heading"><div><p className="eyebrow">ПЕРВЫЕ СИГНАЛЫ</p><h2>Верхние приоритеты</h2></div><span className="muted">{data.topNodes.length} узлов из top_nodes.csv</span></div><div className="priority-table"><div className="table-head"><span>RANK</span><span>GID</span><span>ROLE</span><span>SCORE</span><span>ПОЧЕМУ</span></div>{data.topNodes.slice(0, 8).map((item) => <button className="table-row" key={item.gid} onClick={() => navigateFromCopilot(item.gid)}><span className="rank">{String(item.rank).padStart(2, '0')}</span><span className="gid">{item.gid}</span><span className="role-pill" style={{ color: ROLE_COLORS[item.role] }}>{item.role}</span><span className="score">{item.priority_score.toFixed(3)}</span><span className="why">{item.priority_why || item.why}</span></button>)}</div></section>

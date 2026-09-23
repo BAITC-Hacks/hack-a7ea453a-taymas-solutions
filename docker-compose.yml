@@ -1,5 +1,6 @@
 services:
   pipeline:
+    profiles: ["batch"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -23,14 +24,12 @@ services:
       target: pipeline
     image: money-graph-pipeline:local
     entrypoint: ["python", "-m", "agent_orchestrator.server"]
-    command: ["--out", "/app/out", "--host", "0.0.0.0"]
-    depends_on:
-      pipeline:
-        condition: service_completed_successfully
+    command: ["--out", "/app/out", "--state", "/app/state", "--host", "0.0.0.0"]
     environment:
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_MODEL: ${NVIDIA_MODEL:-}
     volumes:
+      - datasets:/app/state
       - type: bind
         source: ./out
         target: /app/out
@@ -44,8 +43,8 @@ services:
       target: ui
     image: money-graph-ui:local
     depends_on:
-      pipeline:
-        condition: service_completed_successfully
+      copilot:
+        condition: service_started
     ports:
       - "127.0.0.1:${UI_PORT:-8501}:80"
     volumes:
@@ -54,3 +53,6 @@ services:
         target: /usr/share/nginx/html/out
         read_only: true
     restart: unless-stopped
+
+volumes:
+  datasets:

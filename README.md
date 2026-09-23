@@ -4,10 +4,28 @@
 
 ## Первый запуск
 
-Нужен Python 3.11+. Проверены Python 3.11 и 3.13; команды выполняются из корня репозитория:
+Для работы аналитика нужен Docker Desktop. Из корня репозитория:
 
 ```bash
-python3 -m venv .venv
+docker compose up --build
+```
+
+Откройте <http://127.0.0.1:8501>, выберите `nodes.parquet`, `edges.parquet` и
+`transactions.parquet` из архива организаторов и нажмите **«Построить граф»**.
+Заранее создавать `data/` и считать `out/` не нужно. После расчёта доступны граф,
+карточки, три CSV для скачивания и локальный Copilot без NVIDIA-ключа.
+**«Загрузить другой набор»** запускает новый анализ; ошибка сохраняет предыдущий граф.
+Данные остаются на компьютере в Docker volume. [Запуск и хранение](docs/deployment.md),
+[формат загрузки, ограничения и API](docs/uploads.md).
+
+### CLI для воспроизводимости жюри
+
+Распакуйте три файла в `data/`. Нужен Python 3.11+ (проверены 3.11 и 3.13).
+На macOS системный `python3` может быть 3.9, поэтому явно выберите установленный
+Python 3.11 или 3.13. Команды выполняются из корня репозитория:
+
+```bash
+python3.11 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python -m money_graph --data data --out out
@@ -15,7 +33,8 @@ python -m money_graph --data data --out out
 
 Полный прогон занимает около 4 секунд. В `out/` появятся `nodes_roles.csv`, `clusters.csv` и `top_nodes.csv`, вспомогательная таблица рёбер `edge_table.csv` и отчёт о прогоне `run_report.md` / `run_report.json`. До расчётов пайплайн проверяет контракт входных данных, перед записью — схему выгрузок и аудит топ-листа (27 проверок).
 
-Для локального Docker-запуска пайплайна и React-интерфейса см. [инструкцию по деплою](docs/deployment.md): `docker compose up --build` поднимает UI на `http://127.0.0.1:8501` и монтирует `data/`/`out/` с хоста.
+Для CLI через Docker: `docker compose run --build --rm pipeline`. Этот отдельный
+batch-сценарий читает `data/` и записывает результаты в `out/` на хосте.
 
 Чтобы заодно проверить воспроизводимость, добавьте `--check-repro`: пайплайн прогонится второй раз и сверит sha256 всех выгрузок.
 
@@ -29,7 +48,8 @@ python -m money_graph --data data --out out --check-repro
 
 ## Данные
 
-В репозиторий данные не коммитятся: архив организаторов нужно распаковать в `./data`. Там должны лежать:
+В репозиторий данные не коммитятся. Распакуйте архив организаторов в любую папку
+для загрузки через браузер или в `./data` для CLI. Нужны:
 
 - `nodes.parquet` — 2 248 уникальных узлов;
 - `edges.parquet` — 3 119 агрегированных направленных рёбер;
@@ -66,7 +86,8 @@ analytics/
   top_nodes.py        top_nodes.csv и аудит согласованности (PAN-37), см. docs/top_nodes.md
 agent_tools/          read-only инструменты графа для AI-ассистента (PAN-45), см. docs/agent_tools.md
   verifier.py         проверка ответа агента по CSV; evaluation.py — 5 контрольных вопросов (PAN-47)
-tests/                python -m pytest tests (входной контракт, smoke пайплайна, кластеры, приоритет, топ)
+agent_orchestrator/   локальный HTTP API, загрузка Parquet, снимки данных и Copilot
+tests/                python -m pytest tests (контракты, пайплайн, загрузка, HTTP API, аналитика)
 starter/              исходный стартовый код организаторов
 ```
 
@@ -186,13 +207,24 @@ for name in ["nodes_roles", "clusters", "top_nodes"]:
 PY
 ```
 
-Тесты: `python -m pytest tests`. Если `./data` не распакована, тесты пропускаются.
+Тесты: `python -m pytest tests`. Без `./data` пропускаются только проверки датасета
+организаторов; тесты на синтетических данных выполняются.
 
 ## React/Vite экран и пятиминутное демо
 
-Frontend находится в `frontend/` и работает локально поверх CSV из `out/`; API,
-облачный сервис и `NVIDIA_API_KEY` ему не нужны. Нужен Node.js `20.19+` или
+Frontend находится в `frontend/`. Загрузка Parquet и Copilot используют локальный
+Python API; просмотр заранее рассчитанного `out/` возможен и без него.
+Облачный сервис и `NVIDIA_API_KEY` не нужны. Нужен Node.js `20.19+` или
 `22.12+` (это требование Vite 7).
+
+После установки Python-зависимостей запустите API в одном терминале:
+
+```bash
+source .venv/bin/activate
+python -m agent_orchestrator.server --state .money-graph --out out
+```
+
+В другом терминале:
 
 ```bash
 cd frontend
@@ -218,18 +250,22 @@ Frontend ожидает четыре файла:
 
 ```mermaid
 flowchart LR
-  A[data/*.parquet] --> B[Python: input validation]
+  U[React: загрузка 3 Parquet] --> S[Локальный API: каталог задания]
+  S --> B[Python: input validation]
+  A[CLI: data/*.parquet] --> B
   B --> C[features + directed graph]
   C --> D[explainable roles]
   D --> E[clusters + priority ranking]
-  E --> F[out/*.csv]
-  F --> G[React + Vite + Cytoscape.js]
+  E --> F[Проверенные CSV]
+  F --> V[Версия набора: CSV + Copilot]
+  V --> G[React + Vite + Cytoscape.js]
   G --> H[filters, graph, node card, top list]
 ```
 
 Сценарий демо на пять минут:
 
-1. Показать одну команду pipeline и четыре файла в `out/`; открыть UI.
+1. Открыть UI, загрузить три Parquet и показать завершение расчёта, граф и ссылки
+   на CSV. Для воспроизводимости отдельно показать команду CLI.
 2. Включить «Верхние приоритеты», показать направленные стрелки и роль/score
    узлов; объяснить, что score — очередь аналитика, а не вероятность вины.
 3. Вставить gid из `top_nodes.csv`: справа открыть evidence, `priority_why`,

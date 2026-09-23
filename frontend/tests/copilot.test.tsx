@@ -139,6 +139,18 @@ describe('Response gates and graph links', () => {
     await assertion
   })
 
+  it('sends the displayed dataset version and rejects a late answer from another version', async () => {
+    const fetch = vi.fn(() => Promise.resolve(new Response(JSON.stringify(brief), { headers: { 'X-Dataset-Version': 'old' } })))
+    vi.stubGlobal('fetch', fetch)
+    await expect(askCopilot({ question: 'Почему?', selected_gids: [A], use_nvidia: false }, { ...data, datasetId: 'new' }, new AbortController().signal)).rejects.toThrow(/другой версии скрыт/)
+    expect(new Headers((fetch.mock.calls as unknown as [string, RequestInit][])[0][1].headers).get('X-Dataset-Version')).toBe('new')
+  })
+
+  it('rejects a versioned answer while viewing an unversioned legacy graph', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify(brief), { headers: { 'X-Dataset-Version': 'new' } }))))
+    await expect(askCopilot({ question: 'Почему?', selected_gids: [A], use_nvidia: false }, data, new AbortController().signal)).rejects.toThrow(/другой версии скрыт/)
+  })
+
   it('pins cited nodes outside filters and includes exact directed edge', () => {
     const answer = { ...brief, gids: [A, B], claims: [{ kind: 'edge' as const, src: A, dst: B, field: 'sum_kzt', value: 5000,
       source: { file: 'edge_table.csv' as const, src: A, dst: B, column: 'sum_kzt' } }] }

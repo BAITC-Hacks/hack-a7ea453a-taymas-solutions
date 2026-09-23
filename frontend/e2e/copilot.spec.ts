@@ -1,10 +1,18 @@
 import { test, expect } from '@playwright/test'
-import { readFileSync } from 'node:fs'
 import { parseCsv } from '../src/csv'
 
-const top = parseCsv(readFileSync(new URL('../../out/top_nodes.csv', import.meta.url), 'utf8'))
-const edges = parseCsv(readFileSync(new URL('../../out/edge_table.csv', import.meta.url), 'utf8'))
-const primary = top[0].gid
+let edges: ReturnType<typeof parseCsv>
+let primary: string
+
+test.beforeAll(async ({ request }) => {
+  const response = await request.get('/api/datasets/active')
+  const active = response.ok() ? await response.json() : null
+  const base = active?.files_base ?? '/out'
+  const top = parseCsv(await (await request.get(`${base}/top_nodes.csv`)).text())
+  edges = parseCsv(await (await request.get(`${base}/edge_table.csv`)).text())
+  expect(top[0]?.gid, 'Upload a dataset before running Copilot smoke').toBeTruthy()
+  primary = top[0].gid
+})
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/')

@@ -30,7 +30,7 @@ export default function CopilotPanel({ data, selectedId, onNavigate, onAnswer }:
   const request = useRef<AbortController | null>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const resultPanel = useRef<HTMLDivElement>(null)
-  const demo = data.source !== '/out'
+  const demo = !data.datasetId && data.source !== '/out'
 
   useEffect(() => {
     const controller = new AbortController()

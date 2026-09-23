@@ -45,7 +45,7 @@ def test_status_does_not_call_nvidia_or_expose_configuration(server, monkeypatch
     monkeypatch.setenv("NVIDIA_API_KEY", "test-only-secret")
     monkeypatch.setenv("NVIDIA_MODEL", "test-model")
     status, body = request(server)
-    assert status == 200 and body == {"ready": True, "nvidia_available": True}
+    assert status == 200 and body == {"ready": True, "nvidia_available": True, "dataset_id": None}
     assert "test-only-secret" not in json.dumps(body)
 
 

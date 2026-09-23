@@ -54,6 +54,7 @@ export interface GraphData {
   clusters: ClusterRecord[]
   topNodes: TopRecord[]
   source: string
+  datasetId?: string
 }
 
 export interface FilterState {

@@ -24,7 +24,7 @@ COPY agent_orchestrator/ agent_orchestrator/
 COPY money_graph/ money_graph/
 
 RUN useradd --create-home --uid 10001 app \
-    && mkdir -p /app/data /app/out \
+    && mkdir -p /app/data /app/out /app/state \
     && chown -R app:app /app
 USER app
 
