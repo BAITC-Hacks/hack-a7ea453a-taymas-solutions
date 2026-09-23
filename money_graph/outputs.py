@@ -11,7 +11,7 @@ REQUIRED = ["gid", "role", "role_score", "cluster_id", "priority_score", "eviden
 
 # дополнительные колонки: признаки, на которые опирается роль (ТЗ разрешает лишние колонки)
 EXTRA = [
-    "role_rule", "depth", "is_seed", "boundary", "truncated_by_depth", "out_observable",
+    "role_rule", "depth", "is_seed", "boundary", "boundary_depth4", "truncated_by_depth", "out_observable",
     "in_underestimated", "external_inflow_suspected",
     "in_deg", "out_deg", "n_payers", "n_receivers", "n_seed_payers", "n_seed_receivers",
     "in_kzt", "out_kzt", "in_tx", "out_tx", "avg_in_tx_kzt", "avg_out_tx_kzt",
@@ -62,8 +62,10 @@ def validate(nodes_roles: pd.DataFrame, n_expected: int, clusters: pd.DataFrame,
         raise AssertionError("Выгрузки не прошли проверку:\n  " + "\n  ".join(problems))
 
 
-def write_outputs(nodes_roles: pd.DataFrame, clusters: pd.DataFrame, top: pd.DataFrame, out_dir: Path):
+def write_outputs(nodes_roles: pd.DataFrame, clusters: pd.DataFrame, top: pd.DataFrame,
+                  edges: pd.DataFrame, out_dir: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
+    edges.to_csv(out_dir / "edge_table.csv", index=False, encoding="utf-8")
     nodes_roles.to_csv(out_dir / "nodes_roles.csv", index=False, encoding="utf-8")
     clusters.to_csv(out_dir / "clusters.csv", index=False, encoding="utf-8")
     top.to_csv(out_dir / "top_nodes.csv", index=False, encoding="utf-8")

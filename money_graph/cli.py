@@ -10,8 +10,8 @@ import time
 from pathlib import Path
 
 from .features import build_features
-from .graph import build_graph
-from .io import load, sanity_check
+from .graph import build_graph, edge_table, edge_table_for_csv
+from .io import InputSchemaError, load, print_report, validate_inputs
 from .outputs import nodes_roles_table, validate, write_outputs
 from .ranking import assign_clusters, assign_priority, top_nodes_table
 from .roles import ROLES, assign_roles
@@ -40,9 +40,14 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     t0 = time.perf_counter()
-    edges, nodes, tx = load(Path(a.data))
-    sanity_check(edges, nodes, tx)
-    G = build_graph(edges, nodes)
+    try:
+        edges, nodes, tx, report = validate_inputs(*load(Path(a.data)))
+    except (FileNotFoundError, InputSchemaError) as exc:
+        print(f"ОШИБКА: {exc}", file=sys.stderr)
+        sys.exit(2)
+    print_report(report)
+    edges_tbl = edge_table(edges, nodes, tx)
+    G = build_graph(edges_tbl, nodes)
     df = build_features(G, nodes, tx)
     df = assign_roles(df)
     df, clusters = assign_clusters(df, edges, nodes)
@@ -51,7 +56,7 @@ def main(argv=None):
     nodes_roles = nodes_roles_table(df)
     top = top_nodes_table(df)
     validate(nodes_roles, len(nodes), clusters, top)
-    write_outputs(nodes_roles, clusters, top, Path(a.out))
+    write_outputs(nodes_roles, clusters, top, edge_table_for_csv(edges_tbl), Path(a.out))
 
     summary(df)
     print(f"Выгрузки записаны в {Path(a.out)}/ за {time.perf_counter() - t0:.1f} с; проверка схемы: OK")

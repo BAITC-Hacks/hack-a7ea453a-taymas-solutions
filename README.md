@@ -13,7 +13,7 @@ pip install -r requirements.txt
 python -m money_graph --data data --out out
 ```
 
-Полный прогон занимает несколько секунд. В `out/` появятся `nodes_roles.csv`, `clusters.csv` и `top_nodes.csv`. Перед записью пайплайн механически проверяет схему, а повторный запуск даёт побайтно одинаковые файлы.
+Полный прогон занимает несколько секунд. В `out/` появятся `nodes_roles.csv`, `clusters.csv` и `top_nodes.csv`, а также вспомогательная таблица рёбер `edge_table.csv`. До расчётов пайплайн проверяет контракт входных данных, перед записью — схему выгрузок. Повторный запуск даёт побайтно одинаковые файлы.
 
 Оригинальный стартовый код организаторов сохранён без изменений в `starter/` (`python starter/starter.py --data ./data --out ./out`). Роли, кластеры и приоритеты он оставляет пустыми.
 
@@ -27,13 +27,15 @@ python -m money_graph --data data --out out
 
 Схема полей описана в [docs/DATA_README.md](docs/DATA_README.md) и `starter/README.md`.
 
+Перед расчётом вход проверяется: обязательные колонки, типы, пропуски, дубликаты `gid` и пар, покрытие gid, домены значений, сверка `edges` с `transactions` по суммам и числу переводов. При нарушении прогон останавливается со списком всех проблем (код выхода 2). Особенности выгрузки, например 97 повторяющихся транзакций или 444 узла 4-го колена, выводятся как предупреждения. Правила проверок, единицы измерения, обработка пустых потоков и колонки `edge_table.csv` описаны в [docs/features.md](docs/features.md).
+
 ## Устройство
 
 ```
 money_graph/          основной пайплайн: python -m money_graph
   config.py           пороги признаков и ролей с обоснованием
-  io.py               загрузка parquet и sanity-check (из starter)
-  graph.py            направленный взвешенный nx.DiGraph, включая узлы без рёбер
+  io.py               загрузка parquet и проверка контракта входных данных
+  graph.py            таблица направленных рёбер и nx.DiGraph, включая узлы без рёбер
   features.py         признаки узлов
   roles.py            правила ролей, role_score, evidence
   ranking.py          кластеры (через analytics.clustering) и приоритет
@@ -52,7 +54,7 @@ starter/              исходный стартовый код организ�
 | Базовые (starter) | `in_deg, out_deg, in_kzt, out_kzt, in_tx, out_tx, pagerank, pass_through` | потоки: сумма и число переводов считаются отдельно |
 | Контрагенты | `n_payers, n_receivers, n_seed_payers, n_seed_receivers, top_payer_share, top_receiver_share, avg_in_tx_kzt, avg_out_tx_kzt` | сколько уникальных сторон, сколько из них seed, насколько поток сосредоточен на одном контрагенте, средний чек |
 | Центральность (направленный граф) | `betweenness, hub_score, authority_score, downstream_reach, n_seed_upstream, wcc_id, wcc_size` | через кого идут деньги, кто рассылает, кто собирает, сколько узлов ниже по потоку |
-| Граница обхода | `boundary, out_observable, in_underestimated, truncated_by_depth, external_inflow_suspected, pass_through_reliable` | какие потоки узла вообще видны в выгрузке |
+| Граница обхода | `boundary, boundary_depth4, out_observable, in_underestimated, truncated_by_depth, external_inflow_suspected, pass_through_reliable` | какие потоки узла вообще видны в выгрузке |
 | Время | `fast_out_share, median_lag_days, sync_payers_max, max_tx_per_day, active_days` | сквозной транзит за ≤2 дня, синхронные поступления, всплески |
 | Возвратные потоки | `n_cycles, min_cycle_len` | простые циклы длиной до 5 (всего 468) |
 
