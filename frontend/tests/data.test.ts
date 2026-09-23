@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { loadData } from '../src/data'
-import { filterNodes, findNodeByGid, nodeNeighbors } from '../src/filters'
+import { filterNodes, findNodeByGid, isBoundaryNode, nodeNeighbors, summarizeNodeFlows } from '../src/filters'
 import { parseCsv } from '../src/csv'
 import type { FilterState, NodeRecord } from '../src/types'
 
@@ -28,6 +28,27 @@ describe('CSV and graph data contracts', () => {
     expect(nodeNeighbors('A', edges).outgoing[0].dst).toBe('B')
   })
 
+  it('aggregates incoming and outgoing sums, transactions, and counterpart counts', () => {
+    const edges = [
+      { src: 'A', dst: 'B', sum_kzt: 20, n_tx: 2 },
+      { src: 'C', dst: 'B', sum_kzt: 30, n_tx: 3 },
+      { src: 'B', dst: 'D', sum_kzt: 45, n_tx: 4 },
+    ]
+    expect(summarizeNodeFlows('B', edges)).toEqual({
+      incoming: { sum_kzt: 50, n_tx: 5, counterpart_count: 2 },
+      outgoing: { sum_kzt: 45, n_tx: 4, counterpart_count: 1 },
+    })
+  })
+
+  it('marks depth four as a boundary warning even without an explicit flag', () => {
+    expect(isBoundaryNode({ ...node('4'), depth: 4 })).toBe(true)
+    expect(isBoundaryNode(node('3'))).toBe(false)
+  })
+
+  it('returns an explicit unknown result for a gid absent from the data', () => {
+    expect(findNodeByGid([node('100')], '999999')).toBeUndefined()
+  })
+
   it('loads all required CSVs from the local output directory', async () => {
     const fixture = new Map([
       ['nodes_roles.csv', 'gid,role,role_score,cluster_id,priority_score,evidence,depth,is_seed\n100000003684369100,coordinator,0.9,1,0.8,"evidence, with comma",1,false\n'],
@@ -48,6 +69,14 @@ describe('CSV and graph data contracts', () => {
       ok: true, text: () => Promise.resolve(url.endsWith('nodes_roles.csv') ? 'gid\n1\n' : 'x\ny\n'),
     })))
     await expect(loadData('/out')).rejects.toThrow('nodes_roles.csv: отсутствуют обязательные колонки')
+    vi.unstubAllGlobals()
+  })
+
+  it('reports an empty output file with its filename', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
+      ok: true, text: () => Promise.resolve(url.endsWith('nodes_roles.csv') ? '' : 'x,y\n1,2\n'),
+    })))
+    await expect(loadData('/out')).rejects.toThrow('nodes_roles.csv: пустой файл')
     vi.unstubAllGlobals()
   })
 })
