@@ -31,3 +31,30 @@ export function nodeNeighbors(gid: string, edges: EdgeRecord[]) {
     outgoing: edges.filter((edge) => edge.src === gid).sort((a, b) => b.sum_kzt - a.sum_kzt),
   }
 }
+
+export interface FlowSummary {
+  sum_kzt: number
+  n_tx: number
+  counterpart_count: number
+}
+
+export interface NodeFlowSummary {
+  incoming: FlowSummary
+  outgoing: FlowSummary
+}
+
+/** Aggregate all visible transaction edges for a node, including tx count. */
+export function summarizeNodeFlows(gid: string, edges: EdgeRecord[]): NodeFlowSummary {
+  const incoming = edges.filter((edge) => edge.dst === gid)
+  const outgoing = edges.filter((edge) => edge.src === gid)
+  const summarize = (rows: EdgeRecord[]): FlowSummary => ({
+    sum_kzt: rows.reduce((total, edge) => total + edge.sum_kzt, 0),
+    n_tx: rows.reduce((total, edge) => total + edge.n_tx, 0),
+    counterpart_count: rows.length,
+  })
+  return { incoming: summarize(incoming), outgoing: summarize(outgoing) }
+}
+
+export function isBoundaryNode(node: NodeRecord): boolean {
+  return node.boundary_depth4 || node.depth >= 4
+}
