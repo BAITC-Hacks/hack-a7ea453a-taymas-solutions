@@ -68,4 +68,4 @@ python -m analytics.clustering --data data --out out
 
 Python 3.11 (как в Docker-образе `python:3.11-slim`), зависимости — `requirements.txt` в корне. `networkx` зафиксирован на 3.6.1: в 3.7 Louvain с другими seed даёт немного другие разбиения, и колонка `stability` меняется. На 3.11 и 3.13 с этой версией `clusters.csv` совпадает побайтово.
 
-В пайплайн модуль подключается через `analytics.clustering.run(edges, nodes)` → `(node_clusters, clusters)`. Функция ничего не пишет на диск; запись делает CLI модуля или общий `python -m pipeline`.
+В пайплайн модуль подключается через `analytics.clustering.run(edges, nodes)` → `(node_clusters, clusters)`. Функция ничего не пишет на диск; запись делает CLI модуля или общий пайплайн `python -m money_graph` (через `money_graph/ranking.py`).

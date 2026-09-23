@@ -2,7 +2,8 @@
 
 `analytics.top_nodes.run(priority, nodes_roles, top_n=20)` возвращает DataFrame
 с колонками `rank, gid, role, priority_score, why`. Модуль ничего не пишет на диск
-и не импортирует незавершённые модули скоринга или классификации ролей.
+и не импортирует `money_graph`: роли приходят готовой таблицей. Значение top_n
+по умолчанию у функции — 20; общий пайплайн вызывает её с top_n = 30.
 
 Вход `priority` — результат согласованного
 `analytics.priority.run(edges, nodes, node_clusters)`: `gid, priority_score, why`.
@@ -14,11 +15,11 @@
 NaN/inf и score вне 0–1 приводят к ValueError; заглушки не подставляются.
 Каждое why должно содержать хотя бы одну цифру 0–9; текст без чисел отклоняется.
 
-До появления ролей можно вызвать `rank_candidates(priority, top_n=20)`:
-это предварительный рейтинг `rank, gid, priority_score, why`, не готовый
-`top_nodes.csv`. Итоговый CSV по ТЗ требует реальных ролей PAN-34; ни пустая
-роль, ни выдуманный peripheral не заменяют эту зависимость. `run(priority, None)`
-возвращает понятную ошибку с указанием предварительного режима.
+`rank_candidates(priority, top_n=20)` даёт рейтинг `rank, gid, priority_score, why`
+без ролей — для отладки скоринга отдельно от пайплайна; это не `top_nodes.csv`.
+Итоговый CSV требует ролей из `nodes_roles.csv` (PAN-33/34): пустая роль или
+подставленный peripheral не допускаются, а `run(priority, None)` возвращает
+понятную ошибку.
 
 ## Почему узел стоит на своём месте
 
@@ -58,9 +59,9 @@ report = audit(top_nodes, priority, nodes_roles, edges, nodes,
 score и кластеров — отдельные priority и node_clusters. `priority_score`,
 `cluster_id`, `in_kzt`, `out_kzt` в nodes_roles сверяются только при наличии.
 Отчёт явно перечисляет `checked_nodes_roles_fields` и `skipped_nodes_roles_fields`:
-отсутствующие поля не считаются проверенными. Это минимальный контракт
-PAN-37, а не утверждение о согласовании полной схемы с разработчиком PAN-34.
-Остальная схема и evidence проверяются в PAN-34. Аудит проверяет:
+отсутствующие поля не считаются проверенными. В общем пайплайне nodes_roles
+содержит все эти поля, поэтому сверяется всё. Остальная схема и evidence
+проверяются в `money_graph/outputs.py` (PAN-34). Аудит проверяет:
 
 - точный top-N, непрерывный rank, совпадение ролей/score/why и порядок;
 - полное покрытие исходных узлов в priority, ролях и назначениях кластеров;
