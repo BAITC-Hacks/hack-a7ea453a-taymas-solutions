@@ -14,6 +14,8 @@ import CopilotPanel from './copilot/CopilotPanel'
 import type { CopilotAnswer } from './copilot/api'
 import { answerHighlights, includeEvidence } from './copilot/graph'
 import ResiliencePanel from './resilience/ResiliencePanel'
+import CaseWorkspace from './casebook/CaseWorkspace'
+import { useCaseFile } from './casebook/useCaseFile'
 
 const initialFilters: FilterState = {
   search: '',
@@ -27,6 +29,8 @@ const initialFilters: FilterState = {
 
 export default function App() {
   const [data, setData] = useState<GraphData | null>(null)
+  const casebook = useCaseFile(data)
+  const [workspaceView, setWorkspaceView] = useState<'network' | 'case'>('network')
   const [error, setError] = useState<string>()
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState(initialFilters)
@@ -127,6 +131,7 @@ export default function App() {
     setFocused(undefined)
   }
   const focusNode = useCallback((gid: string) => {
+    setWorkspaceView('network')
     setFilters((current) => ({ ...initialFilters, limit: current.limit }))
     setSelectedId(gid)
     setNeighborhoodId(gid)
@@ -145,34 +150,39 @@ export default function App() {
     if (data?.topNodes[0]) focusNode(data.topNodes[0].gid)
   }
   const openCopilot = () => {
+    setWorkspaceView('network')
     setInspectorTab('copilot')
     document.getElementById('inspector')?.scrollIntoView({ block: 'nearest' })
   }
+  const openCase = () => { setWorkspaceView('case'); setFocusMode(false); window.scrollTo({ top: 0, behavior: 'instant' }) }
 
   return (
-    <div className={`app-shell ${focusMode ? 'focus-mode' : ''}`}>
+    <div className={`app-shell ${focusMode ? 'focus-mode' : ''} ${workspaceView === 'case' ? 'case-mode' : ''}`}>
       <nav className="nav-rail" aria-label="Навигация по рабочему пространству">
-        <a className="rail-logo" href="#network" title="Taymas">
+        <a className="rail-logo" href="#network" title="Taymas" onClick={() => setWorkspaceView('network')}>
           T<span>↗</span>
         </a>
-        <a className="rail-link active" href="#network" aria-label="Карта связей">
+        <a className={`rail-link ${workspaceView === 'network' ? 'active' : ''}`} href="#network" aria-label="Карта связей" onClick={() => setWorkspaceView('network')}>
           <Icon name="network" size={21} />
         </a>
-        <a className="rail-link" href="#priorities" aria-label="Очередь на проверку" onClick={() => setFocusMode(false)}>
+        <a className="rail-link" href="#priorities" aria-label="Очередь на проверку" onClick={() => { setFocusMode(false); setWorkspaceView('network') }}>
           <Icon name="list" size={21} />
         </a>
         <button
-          className={`rail-link ${inspectorTab === 'copilot' ? 'active' : ''}`}
+          className={`rail-link ${workspaceView === 'network' && inspectorTab === 'copilot' ? 'active' : ''}`}
           aria-label="Открыть AI Copilot"
           onClick={openCopilot}
         >
           <Icon name="spark" size={21} />
         </button>
-        <a className="rail-link" href="#resilience" aria-label="Устойчивость сети" onClick={() => setFocusMode(false)}>
+        <a className="rail-link" href="#resilience" aria-label="Устойчивость сети" onClick={() => { setFocusMode(false); setWorkspaceView('network') }}>
           <Icon name="nodes" size={20} />
         </a>
+        <button className={`rail-link rail-case ${workspaceView === 'case' ? 'active' : ''}`} aria-label="Открыть дело расследования" aria-pressed={workspaceView === 'case'} onClick={openCase}>
+          <Icon name="folder" size={21} />{casebook.file.items.length > 0 && <span className="rail-case-count">{casebook.file.items.length}</span>}
+        </button>
         <span className="rail-spacer" />
-        <a className="rail-link" href="#methodology" aria-label="О данных и ограничениях" onClick={() => setFocusMode(false)}>
+        <a className="rail-link" href="#methodology" aria-label="О данных и ограничениях" onClick={() => { setFocusMode(false); setWorkspaceView('network') }}>
           <Icon name="info" size={20} />
         </a>
         <span className="rail-caption">
@@ -184,6 +194,7 @@ export default function App() {
       <div className="app-body">
         <Header data={data} onStart={start} onCopilot={openCopilot} />
         <main>
+          <div hidden={workspaceView !== 'network'}>
           {loading && <LoadingState />}
           {!loading && error && (
             <ErrorState
@@ -279,13 +290,15 @@ export default function App() {
                         rank={data.topNodes.find((n) => n.gid === selected.gid)?.rank}
                         onSelect={focusNode}
                         onClose={() => setSelectedId(undefined)}
+                        onSave={() => casebook.saveNode(selected.gid)}
+                        canSave={Boolean(casebook.version)}
                       />
                     ) : (
                       <EmptyInspector search={filters.search} onStart={start} />
                     )}
                   </div>
                   <div className="inspector-scroll" id="copilot-panel" role="tabpanel" aria-labelledby="copilot-tab" hidden={inspectorTab !== 'copilot'}>
-                    <CopilotSlot><CopilotPanel key={data.source} data={data} selectedId={selectedId} onNavigate={navigateFromCopilot} onAnswer={receiveAnswer} /></CopilotSlot>
+                    <CopilotSlot><CopilotPanel key={data.source} data={data} selectedId={selectedId} onNavigate={navigateFromCopilot} onAnswer={receiveAnswer} onSaveAnswer={casebook.saveAnswer} canSave={Boolean(casebook.version)} /></CopilotSlot>
                   </div>
                 </aside>
               </section>
@@ -310,8 +323,15 @@ export default function App() {
               </footer>
             </>
           )}
+          </div>
+          <div hidden={workspaceView !== 'case'}><CaseWorkspace controller={casebook} data={data} onNavigate={focusNode} onExplore={() => setWorkspaceView('network')} /></div>
         </main>
       </div>
+      {casebook.notice && <div className="case-toast" role="status"><span>{casebook.notice}</span>
+        {casebook.removed && <button className="text-button" onClick={casebook.undo}>Отменить удаление</button>}
+        {workspaceView !== 'case' && <button className="text-button" onClick={openCase}>Открыть дело <Icon name="arrow" size={13} /></button>}
+        <button className="icon-button" aria-label="Закрыть уведомление" onClick={casebook.clearNotice}><Icon name="close" size={14} /></button>
+      </div>}
     </div>
   )
 }
