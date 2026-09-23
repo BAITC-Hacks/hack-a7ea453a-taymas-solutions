@@ -19,32 +19,12 @@ from agent_tools import (RESULTS, TOOL_NAMES, GraphStore, GraphTools, InvalidArg
                          UnknownClusterError, UnknownGidError, call_tool, tool_specs, validate)
 from money_graph.cli import main as run_pipeline
 
-from tests._mini import DATA, HAS_DATA, frames_from_tx
-
-S1, S2, S3, I = 1, 2, 3, 4
-C, M, N, L, D, K, E, F = 11, 12, 13, 14, 21, 22, 31, 41
-
-ROWS = [
-    (S1, C, "2026-07-01", 100_000), (S2, C, "2026-07-01", 50_000), (S2, L, "2026-07-02", 10_000),
-    (S1, M, "2026-07-01", 30_000), (M, K, "2026-07-02", 30_000),
-    (S3, N, "2026-07-01", 20_000), (N, K, "2026-07-02", 20_000),
-    (C, D, "2026-07-02", 90_000), (C, D, "2026-07-03", 50_000),
-    (D, E, "2026-07-04", 100_000), (E, F, "2026-07-05", 90_000),
-]
-DEPTH = {S1: 0, S2: 0, S3: 0, I: 0, C: 1, M: 1, N: 1, L: 1, D: 2, K: 2, E: 3, F: 4}
+from tests._mini import C, D, DATA, E, F, HAS_DATA, I, K, L, M, N, S1, S2, S3, build_outputs
 
 
 @pytest.fixture(scope="module")
 def out_dir(tmp_path_factory):
-    root = tmp_path_factory.mktemp("agent")
-    edges, nodes, tx = frames_from_tx(ROWS, DEPTH)
-    data = root / "data"
-    data.mkdir()
-    edges.to_parquet(data / "edges.parquet", index=False)
-    nodes.to_parquet(data / "nodes.parquet", index=False)
-    tx.to_parquet(data / "transactions.parquet", index=False)
-    run_pipeline(["--data", str(data), "--out", str(root / "out")])
-    return root / "out"
+    return build_outputs(tmp_path_factory.mktemp("agent"))
 
 
 @pytest.fixture(scope="module")

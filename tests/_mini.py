@@ -54,3 +54,34 @@ def write_mini_parquet(data_dir: Path) -> Path:
     nodes.to_parquet(data_dir / "nodes.parquet", index=False)
     tx.to_parquet(data_dir / "transactions.parquet", index=False)
     return data_dir
+
+
+# ---------------------------------------------------------------- граф для инструментов агента
+#   S1 ─100к→ C ←50к─ S2 ─10к→ L            C — общий сборщик S1 и S2 напрямую
+#   S1 ─30к→ M ─30к→ K ←20к─ N ←20к─ S3     K — общий сборщик S1 и S3 через посредников
+#   C ─140к→ D ─100к→ E ─90к→ F (4-е колено) цепочка вниз до границы обхода
+#   I — seed без переводов
+S1, S2, S3, I = 1, 2, 3, 4
+C, M, N, L, D, K, E, F = 11, 12, 13, 14, 21, 22, 31, 41
+AGENT_ROWS = [
+    (S1, C, "2026-07-01", 100_000), (S2, C, "2026-07-01", 50_000), (S2, L, "2026-07-02", 10_000),
+    (S1, M, "2026-07-01", 30_000), (M, K, "2026-07-02", 30_000),
+    (S3, N, "2026-07-01", 20_000), (N, K, "2026-07-02", 20_000),
+    (C, D, "2026-07-02", 90_000), (C, D, "2026-07-03", 50_000),
+    (D, E, "2026-07-04", 100_000), (E, F, "2026-07-05", 90_000),
+]
+AGENT_DEPTH = {S1: 0, S2: 0, S3: 0, I: 0, C: 1, M: 1, N: 1, L: 1, D: 2, K: 2, E: 3, F: 4}
+
+
+def build_outputs(root: Path, rows=AGENT_ROWS, depth=AGENT_DEPTH) -> Path:
+    """Parquet из переводов → настоящий пайплайн → папка out с выгрузками."""
+    from money_graph.cli import main as run_pipeline
+
+    edges, nodes, tx = frames_from_tx(rows, depth)
+    data = root / "data"
+    data.mkdir(parents=True, exist_ok=True)
+    edges.to_parquet(data / "edges.parquet", index=False)
+    nodes.to_parquet(data / "nodes.parquet", index=False)
+    tx.to_parquet(data / "transactions.parquet", index=False)
+    run_pipeline(["--data", str(data), "--out", str(root / "out")])
+    return root / "out"

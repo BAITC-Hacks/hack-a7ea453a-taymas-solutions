@@ -56,6 +56,7 @@ analytics/
   priority.py         priority_score и why по формуле (PAN-36), см. docs/priority.md
   top_nodes.py        top_nodes.csv и аудит согласованности (PAN-37), см. docs/top_nodes.md
 agent_tools/          read-only инструменты графа для AI-ассистента (PAN-45), см. docs/agent_tools.md
+  verifier.py         проверка ответа агента по CSV; evaluation.py — 5 контрольных вопросов (PAN-47)
 tests/                python -m pytest tests (входной контракт, smoke пайплайна, кластеры, приоритет, топ)
 starter/              исходный стартовый код организаторов
 ```
@@ -160,6 +161,8 @@ python -m agent_tools get_node '{"gid": "100000003684369100"}'
 ```
 
 Список инструментов, пример из Python, JSON-схемы и коды ошибок описаны в [docs/agent_tools.md](docs/agent_tools.md).
+
+Ответ ассистента проверяет верификатор [agent_tools/verifier.py](agent_tools/verifier.py). Каждая роль, сумма и связь сверяются с CSV, каждое число в тексте должно прослеживаться до данных, узел 4-го колена нельзя назвать terminal, вызывать можно только разрешённые инструменты. Неподтверждённое помечается как «не наблюдается» или «гипотеза». Контрольный набор из 5 AML-вопросов запускается так: `python -m agent_tools.evaluation --out out`. Подробности в [docs/agent_verifier.md](docs/agent_verifier.md).
 
 ## Быстрая проверка выходных файлов
 
