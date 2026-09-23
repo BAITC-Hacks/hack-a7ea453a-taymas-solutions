@@ -31,6 +31,22 @@ def mini_frames():
     return edges, nodes, tx
 
 
+def frames_from_tx(rows, depth: dict):
+    """(edges, nodes, tx) из списка переводов (src, dst, 'YYYY-MM-DD', сумма) и колен узлов.
+
+    seed — узлы с depth=0. Рёбра агрегируются из транзакций, как в выгрузке.
+    """
+    tx = pd.DataFrame(rows, columns=["src", "dst", "date", "sum_kzt"])
+    tx["sum_kzt"] = tx.sum_kzt.astype(float)
+    nodes = pd.DataFrame({"gid": list(depth), "depth": list(depth.values())})
+    nodes["is_seed"] = nodes.depth == 0
+    edges = (tx.groupby(["src", "dst"]).agg(sum_kzt=("sum_kzt", "sum"), n_tx=("sum_kzt", "size"))
+             .reset_index())
+    edges["depth"] = (edges.src.map(depth) + 1).astype("int8")
+    tx["date"] = pd.to_datetime(tx.date).dt.date
+    return edges, nodes, tx
+
+
 def write_mini_parquet(data_dir: Path) -> Path:
     data_dir.mkdir(parents=True, exist_ok=True)
     edges, nodes, tx = mini_frames()
