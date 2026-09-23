@@ -16,7 +16,7 @@ export default function DataRequestPanel({ data, gid, onNavigate }: Props) {
       {!plan && <p>Выберите узел на графе или добавьте GID в контекст помощника.</p>}
       {plan && <>
         <p className="data-request-target">План для узла <button type="button" onClick={() => onNavigate(plan.gid)} disabled={plan.status === 'unknown_gid'}>{plan.gid}</button></p>
-        {data.source !== '/out' && <p className="data-request-note">Демонстрационный набор: план относится только к показанным данным.</p>}
+        {data.source !== '/out' && !data.datasetId && <p className="data-request-note">Демонстрационный набор: план относится только к показанным данным.</p>}
         <p>{plan.message}</p>
         {plan.items.map(item => <article key={item.id} className="data-request-item">
           <h3>{item.title}</h3>

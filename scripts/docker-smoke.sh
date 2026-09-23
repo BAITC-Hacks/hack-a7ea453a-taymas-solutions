@@ -34,8 +34,9 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 compose build pipeline ui
-compose up -d pipeline copilot ui
-pipeline_id=$(compose ps -aq pipeline)
+compose run --name "$COMPOSE_PROJECT_NAME-pipeline" pipeline
+pipeline_id="$COMPOSE_PROJECT_NAME-pipeline"
+compose up -d copilot ui
 copilot_id=$(compose ps -q copilot)
 ui_id=$(compose ps -q ui)
 test "$(docker inspect "$pipeline_id" --format '{{range .Mounts}}{{if eq .Destination "/app/data"}}{{.RW}}{{end}}{{end}}')" = false
@@ -76,7 +77,7 @@ from pathlib import Path
 p = Path("/app/out")
 assert os.access(p, os.W_OK), "out is not writable by the pipeline user"
 status = json.loads((p / "smoke-status.json").read_text())
-assert status == {"ready": True, "nvidia_available": False}, status
+assert status["ready"] is True and status["nvidia_available"] is False and status["dataset_id"], status
 reply = json.loads((p / "smoke-answer.json").read_text())
 assert reply["status"] == "ok", reply.get("error")
 assert reply["provider"] == "fallback" and reply["fallback_reason"] == "no_api_key"
@@ -90,6 +91,9 @@ print("Pipeline ownership and verified Copilot fallback: OK (uid=%s gid=%s)" % (
 if [ "${SMOKE_BROWSER:-0}" = 1 ]; then
   node scripts/docker-browser-smoke.mjs "$base_url" online
 fi
+
+# Browser uploads run the same pipeline and atomically update the live version.
+python3 scripts/upload-smoke.py --url "$base_url" --data "$DATA_DIR" --compare-out "$OUT_DIR"
 
 compose stop copilot
 wait_http /healthz

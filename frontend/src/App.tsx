@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import DatasetUpload from './DatasetUpload'
 import { DataLoadError, loadData } from './data'
 import { buildGraphView, filterNodes, findNodeByGid } from './filters'
 import type { FilterState, GraphData } from './types'
@@ -66,9 +67,14 @@ export default function App() {
       setLoading(false)
     }
   }, [])
-  useEffect(() => {
-    void fetchData()
-  }, [fetchData])
+  const receiveDataset = useCallback((next: GraphData | null) => {
+    setData(next); setLoading(false); setError(undefined); setFilters(initialFilters)
+    setSelectedId(undefined); setHoveredId(undefined); setCopilotAnswer(null); setFocused(undefined)
+    setNeighborhoodId(undefined); setNeighborsOnly(true); setFocusMode(false); setInspectorTab('copilot')
+    setWorkspaceView('network')
+  }, [])
+  const loadLegacy = useCallback(() => fetchData(), [fetchData])
+  const finishInitialCheck = useCallback(() => setLoading(false), [])
 
   const topIds = useMemo(() => new Set(data?.topNodes.map((n) => n.gid) ?? []), [data])
   const filteredNodes = useMemo(
@@ -199,6 +205,7 @@ export default function App() {
       <div className="app-body">
         <Header data={data} onStart={start} onCopilot={openCopilot} />
         <main>
+          <DatasetUpload data={data} onDatasetReady={receiveDataset} onLegacy={loadLegacy} onInitialCheckDone={finishInitialCheck} />
           <div hidden={workspaceView !== 'network'}>
           {loading && <LoadingState />}
           {!loading && error && (
@@ -303,7 +310,7 @@ export default function App() {
                     )}
                   </div>
                   <div className="inspector-scroll" id="copilot-panel" role="tabpanel" aria-labelledby="copilot-tab" hidden={inspectorTab !== 'copilot'}>
-                    <CopilotSlot><CopilotPanel key={data.source} data={data} selectedId={selectedId} onNavigate={focusNode} onAnswer={receiveAnswer} onSaveAnswer={casebook.saveAnswer} canSave={Boolean(casebook.version)} /></CopilotSlot>
+                    <CopilotSlot><CopilotPanel key={data.datasetId ?? data.source} data={data} selectedId={selectedId} onNavigate={focusNode} onAnswer={receiveAnswer} onSaveAnswer={casebook.saveAnswer} canSave={Boolean(casebook.version)} /></CopilotSlot>
                   </div>
                 </aside>
               </section>

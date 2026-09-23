@@ -270,6 +270,7 @@ def test_string_gid_from_model_and_no_leaked_context():
     assert "12" not in json.dumps(context)
 
 
+
 def test_missing_model_does_not_attempt_api(monkeypatch):
     monkeypatch.setenv("NVIDIA_API_KEY", "test-only-key")
     result = run(Request("Почему?", [11], use_nvidia=True), Backend())

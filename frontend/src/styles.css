@@ -3,6 +3,7 @@
 @import './styles/network.css';
 @import './styles/inspector.css';
 @import './styles/copilot-integration.css';
+@import './styles/uploads.css';
 
 * {
   box-sizing: border-box;

@@ -14,7 +14,7 @@ export interface CopilotAnswer {
   next_steps: string[]; tool_calls: { tool: string }[]; verification: string
   fallback_reason: string | null; error: { code: string; message: string } | null
 }
-export interface Availability { ready: boolean; nvidia_available: boolean }
+export interface Availability { ready: boolean; nvidia_available: boolean; dataset_id?: string | null }
 
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Некорректный ответ помощника.')
@@ -129,8 +129,11 @@ export async function askCopilot(request: CopilotRequest, data: GraphData, signa
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT)
   let response: Response
   try {
-    response = await fetch('/api/copilot/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    response = await fetch('/api/copilot/answer', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(data.datasetId ? { 'X-Dataset-Version': data.datasetId } : {}) },
       body: JSON.stringify(request), signal: AbortSignal.any([signal, timeout]) })
+    if (response.status === 409 || (response.ok && response.headers.get('X-Dataset-Version') !== (data.datasetId ?? null))) {
+      throw new Error('Данные помощника изменились. Обновите граф перед новым вопросом; ответ другой версии скрыт.')
+    }
     if (!response.ok) throw new Error(response.status === 503 ? 'Помощник занят. Повторите запрос.' : 'Помощник недоступен. Попробуйте ещё раз; граф и фильтры доступны.')
     return validateAnswer(await boundedJson(response, MAX_RESPONSE_BYTES), data)
   } catch (error) {
@@ -145,5 +148,5 @@ export async function copilotStatus(signal: AbortSignal): Promise<Availability> 
   if (!response.ok) throw new Error('unavailable')
   const raw = record(await boundedJson(response, 1024))
   if (typeof raw.ready !== 'boolean' || typeof raw.nvidia_available !== 'boolean') throw new Error('invalid status')
-  return { ready: raw.ready, nvidia_available: raw.nvidia_available }
+  return { ready: raw.ready, nvidia_available: raw.nvidia_available, ...(typeof raw.dataset_id === 'string' || raw.dataset_id === null ? { dataset_id: raw.dataset_id } : {}) }
 }
