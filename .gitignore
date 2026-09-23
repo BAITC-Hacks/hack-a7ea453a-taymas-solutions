@@ -13,3 +13,8 @@ data/
 /ааа/
 .mcp.json
 .claude/
+
+# Credentials stay local; only the empty template is tracked.
+.env
+.env.*
+!.env.example
