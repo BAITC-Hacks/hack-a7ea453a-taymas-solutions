@@ -26,14 +26,16 @@ PY
 
 api_pid=""
 ui_pid=""
+state_dir="$(mktemp -d "${TMPDIR:-/tmp}/money-graph-ci-state.XXXXXX")"
 cleanup() {
   if [[ -n "$ui_pid" ]]; then kill "$ui_pid" 2>/dev/null || true; wait "$ui_pid" 2>/dev/null || true; fi
   if [[ -n "$api_pid" ]]; then kill "$api_pid" 2>/dev/null || true; wait "$api_pid" 2>/dev/null || true; fi
+  rm -rf -- "$state_dir"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-"$python_bin" -m agent_orchestrator.server --out out --port "$CI_API_PORT" > .ci-artifacts/copilot.log 2>&1 &
+"$python_bin" -m agent_orchestrator.server --out out --state "$state_dir" --port "$CI_API_PORT" > .ci-artifacts/copilot.log 2>&1 &
 api_pid=$!
 (
   cd frontend
@@ -60,9 +62,18 @@ if [[ "$ready" != true ]]; then
 fi
 "$python_bin" - <<'PY'
 import json
+import os
+import re
+import urllib.request
 from pathlib import Path
 status = json.loads(Path(".ci-artifacts/status.json").read_text())
-assert status == {"ready": True, "nvidia_available": False}, status
+assert status.get("ready") is True and status.get("nvidia_available") is False, status
+version = status.get("dataset_id")
+assert isinstance(version, str) and re.fullmatch(r"[a-f0-9]{32}", version), status
+with urllib.request.urlopen(os.environ["COPILOT_UI_URL"] + "/api/datasets/active", timeout=5) as response:
+    active = json.load(response)
+assert active.get("dataset_id") == version, active
+assert active.get("files_base") == f"/api/datasets/{version}/files", active
 PY
 cd frontend
 node node_modules/@playwright/test/cli.js test --trace retain-on-failure --reporter=line,html

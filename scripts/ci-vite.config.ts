@@ -9,7 +9,7 @@ export default {
     port: Number(process.env.CI_UI_PORT ?? '15179'),
     strictPort: true,
     proxy: {
-      '/api/copilot': {
+      '/api': {
         target: `http://127.0.0.1:${process.env.CI_API_PORT ?? '18769'}`,
         changeOrigin: true,
       },
