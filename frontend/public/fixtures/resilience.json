@@ -1,0 +1,826 @@
+{
+ "schema": "resilience/v1",
+ "generated_at": "2026-09-23T17:26:08",
+ "sources": {
+  "nodes_roles.csv": {
+   "sha256": "44b095dafe6f8f1f696aafc59bf0ed81c632b01734a9ad1cdbb8affcf9efabf5"
+  },
+  "edge_table.csv": {
+   "sha256": "4d466d448138e3e8e8884c3c8ed6c024b12e6392780883269c682949b11ee53e"
+  },
+  "graph": {
+   "n_nodes": 4,
+   "n_edges": 4,
+   "total_kzt": 9490000.0
+  }
+ },
+ "parameters": {
+  "steps": [
+   0,
+   1
+  ],
+  "random_runs": 100,
+  "seed": 42,
+  "networkx_version": "3.6.1",
+  "ranking": "priority_score desc, gid asc",
+  "matched_on": [
+   "is_seed",
+   "depth"
+  ],
+  "adaptive_ranking": false,
+  "headline_metrics": [
+   "weak_pair_loss",
+   "seed_reach_loss",
+   "removed_kzt_share"
+  ]
+ },
+ "timing_sec": {
+  "read_inputs": 0.011,
+  "experiment": 0.155,
+  "total": 0.18
+ },
+ "baseline": {
+  "n_remaining": 4.0,
+  "n_edges_remaining": 4.0,
+  "weak_components": 2.0,
+  "largest_weak_size": 3.0,
+  "largest_weak_share_original": 0.75,
+  "largest_strong_size": 2.0,
+  "isolates": 1.0,
+  "new_isolates": 0.0,
+  "survivor_pairs_before": 3.0,
+  "survivor_pairs_after": 3.0,
+  "weak_pair_loss": 0.0,
+  "n_seed_remaining": 1.0,
+  "seed_reachable_before": 0.0,
+  "seed_reachable_after": 0.0,
+  "seed_reach_loss": null,
+  "remaining_kzt": 9490000.0,
+  "removed_kzt": 0.0,
+  "removed_kzt_share": 0.0
+ },
+ "deterministic": {
+  "priority": {
+   "0": {
+    "n_remaining": 4,
+    "n_edges_remaining": 4,
+    "weak_components": 2,
+    "largest_weak_size": 3,
+    "largest_weak_share_original": 0.75,
+    "largest_strong_size": 2,
+    "isolates": 1,
+    "new_isolates": 0,
+    "survivor_pairs_before": 3,
+    "survivor_pairs_after": 3,
+    "weak_pair_loss": 0.0,
+    "n_seed_remaining": 1,
+    "seed_reachable_before": 0,
+    "seed_reachable_after": 0,
+    "seed_reach_loss": null,
+    "remaining_kzt": 9490000.0,
+    "removed_kzt": 0.0,
+    "removed_kzt_share": 0.0
+   },
+   "1": {
+    "n_remaining": 3,
+    "n_edges_remaining": 1,
+    "weak_components": 2,
+    "largest_weak_size": 2,
+    "largest_weak_share_original": 0.5,
+    "largest_strong_size": 1,
+    "isolates": 1,
+    "new_isolates": 0,
+    "survivor_pairs_before": 1,
+    "survivor_pairs_after": 1,
+    "weak_pair_loss": 0.0,
+    "n_seed_remaining": 1,
+    "seed_reachable_before": 0,
+    "seed_reachable_after": 0,
+    "seed_reach_loss": null,
+    "remaining_kzt": 150000.0,
+    "removed_kzt": 9340000.0,
+    "removed_kzt_share": 0.9841938883034773
+   }
+  },
+  "degree": {
+   "0": {
+    "n_remaining": 4,
+    "n_edges_remaining": 4,
+    "weak_components": 2,
+    "largest_weak_size": 3,
+    "largest_weak_share_original": 0.75,
+    "largest_strong_size": 2,
+    "isolates": 1,
+    "new_isolates": 0,
+    "survivor_pairs_before": 3,
+    "survivor_pairs_after": 3,
+    "weak_pair_loss": 0.0,
+    "n_seed_remaining": 1,
+    "seed_reachable_before": 0,
+    "seed_reachable_after": 0,
+    "seed_reach_loss": null,
+    "remaining_kzt": 9490000.0,
+    "removed_kzt": 0.0,
+    "removed_kzt_share": 0.0
+   },
+   "1": {
+    "n_remaining": 3,
+    "n_edges_remaining": 1,
+    "weak_components": 2,
+    "largest_weak_size": 2,
+    "largest_weak_share_original": 0.5,
+    "largest_strong_size": 1,
+    "isolates": 1,
+    "new_isolates": 0,
+    "survivor_pairs_before": 1,
+    "survivor_pairs_after": 1,
+    "weak_pair_loss": 0.0,
+    "n_seed_remaining": 1,
+    "seed_reachable_before": 0,
+    "seed_reachable_after": 0,
+    "seed_reach_loss": null,
+    "remaining_kzt": 150000.0,
+    "removed_kzt": 9340000.0,
+    "removed_kzt_share": 0.9841938883034773
+   }
+  }
+ },
+ "controls": {
+  "random": {
+   "0": {
+    "n_remaining": {
+     "mean": 4.0,
+     "q05": 4.0,
+     "q95": 4.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "n_edges_remaining": {
+     "mean": 4.0,
+     "q05": 4.0,
+     "q95": 4.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "weak_components": {
+     "mean": 2.0,
+     "q05": 2.0,
+     "q95": 2.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "largest_weak_size": {
+     "mean": 3.0,
+     "q05": 3.0,
+     "q95": 3.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "largest_weak_share_original": {
+     "mean": 0.75,
+     "q05": 0.75,
+     "q95": 0.75,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "largest_strong_size": {
+     "mean": 2.0,
+     "q05": 2.0,
+     "q95": 2.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "isolates": {
+     "mean": 1.0,
+     "q05": 1.0,
+     "q95": 1.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "new_isolates": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "survivor_pairs_before": {
+     "mean": 3.0,
+     "q05": 3.0,
+     "q95": 3.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "survivor_pairs_after": {
+     "mean": 3.0,
+     "q05": 3.0,
+     "q95": 3.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "weak_pair_loss": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "n_seed_remaining": {
+     "mean": 1.0,
+     "q05": 1.0,
+     "q95": 1.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "seed_reachable_before": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "seed_reachable_after": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "seed_reach_loss": {
+     "mean": null,
+     "q05": null,
+     "q95": null,
+     "n_trials": 100,
+     "n_valid": 0
+    },
+    "remaining_kzt": {
+     "mean": 9490000.0,
+     "q05": 9490000.0,
+     "q95": 9490000.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "removed_kzt": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "removed_kzt_share": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    }
+   },
+   "1": {
+    "n_remaining": {
+     "mean": 3.0,
+     "q05": 3.0,
+     "q95": 3.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "n_edges_remaining": {
+     "mean": 1.92,
+     "q05": 1.0,
+     "q95": 4.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "weak_components": {
+     "mean": 1.78,
+     "q05": 1.0,
+     "q95": 2.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "largest_weak_size": {
+     "mean": 2.22,
+     "q05": 2.0,
+     "q95": 3.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "largest_weak_share_original": {
+     "mean": 0.555,
+     "q05": 0.5,
+     "q95": 0.75,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "largest_strong_size": {
+     "mean": 1.48,
+     "q05": 1.0,
+     "q95": 2.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "isolates": {
+     "mean": 0.78,
+     "q05": 0.0,
+     "q95": 1.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "new_isolates": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "survivor_pairs_before": {
+     "mean": 1.44,
+     "q05": 1.0,
+     "q95": 3.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "survivor_pairs_after": {
+     "mean": 1.44,
+     "q05": 1.0,
+     "q95": 3.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "weak_pair_loss": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "n_seed_remaining": {
+     "mean": 0.78,
+     "q05": 0.0,
+     "q95": 1.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "seed_reachable_before": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "seed_reachable_after": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "seed_reach_loss": {
+     "mean": null,
+     "q05": null,
+     "q95": null,
+     "n_trials": 100,
+     "n_valid": 0
+    },
+    "remaining_kzt": {
+     "mean": 4557900.0,
+     "q05": 150000.0,
+     "q95": 9490000.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "removed_kzt": {
+     "mean": 4932100.0,
+     "q05": 0.0,
+     "q95": 9340000.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "removed_kzt_share": {
+     "mean": 0.5197154899894626,
+     "q05": 0.0,
+     "q95": 0.9841938883034773,
+     "n_trials": 100,
+     "n_valid": 100
+    }
+   }
+  },
+  "matched_random": {
+   "0": {
+    "n_remaining": {
+     "mean": 4.0,
+     "q05": 4.0,
+     "q95": 4.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "n_edges_remaining": {
+     "mean": 4.0,
+     "q05": 4.0,
+     "q95": 4.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "weak_components": {
+     "mean": 2.0,
+     "q05": 2.0,
+     "q95": 2.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "largest_weak_size": {
+     "mean": 3.0,
+     "q05": 3.0,
+     "q95": 3.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "largest_weak_share_original": {
+     "mean": 0.75,
+     "q05": 0.75,
+     "q95": 0.75,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "largest_strong_size": {
+     "mean": 2.0,
+     "q05": 2.0,
+     "q95": 2.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "isolates": {
+     "mean": 1.0,
+     "q05": 1.0,
+     "q95": 1.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "new_isolates": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "survivor_pairs_before": {
+     "mean": 3.0,
+     "q05": 3.0,
+     "q95": 3.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "survivor_pairs_after": {
+     "mean": 3.0,
+     "q05": 3.0,
+     "q95": 3.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "weak_pair_loss": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "n_seed_remaining": {
+     "mean": 1.0,
+     "q05": 1.0,
+     "q95": 1.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "seed_reachable_before": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "seed_reachable_after": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "seed_reach_loss": {
+     "mean": null,
+     "q05": null,
+     "q95": null,
+     "n_trials": 100,
+     "n_valid": 0
+    },
+    "remaining_kzt": {
+     "mean": 9490000.0,
+     "q05": 9490000.0,
+     "q95": 9490000.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "removed_kzt": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "removed_kzt_share": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    }
+   },
+   "1": {
+    "n_remaining": {
+     "mean": 3.0,
+     "q05": 3.0,
+     "q95": 3.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "n_edges_remaining": {
+     "mean": 1.0,
+     "q05": 1.0,
+     "q95": 1.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "weak_components": {
+     "mean": 2.0,
+     "q05": 2.0,
+     "q95": 2.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "largest_weak_size": {
+     "mean": 2.0,
+     "q05": 2.0,
+     "q95": 2.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "largest_weak_share_original": {
+     "mean": 0.5,
+     "q05": 0.5,
+     "q95": 0.5,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "largest_strong_size": {
+     "mean": 1.0,
+     "q05": 1.0,
+     "q95": 1.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "isolates": {
+     "mean": 1.0,
+     "q05": 1.0,
+     "q95": 1.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "new_isolates": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "survivor_pairs_before": {
+     "mean": 1.0,
+     "q05": 1.0,
+     "q95": 1.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "survivor_pairs_after": {
+     "mean": 1.0,
+     "q05": 1.0,
+     "q95": 1.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "weak_pair_loss": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "n_seed_remaining": {
+     "mean": 1.0,
+     "q05": 1.0,
+     "q95": 1.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "seed_reachable_before": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "seed_reachable_after": {
+     "mean": 0.0,
+     "q05": 0.0,
+     "q95": 0.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "seed_reach_loss": {
+     "mean": null,
+     "q05": null,
+     "q95": null,
+     "n_trials": 100,
+     "n_valid": 0
+    },
+    "remaining_kzt": {
+     "mean": 150000.0,
+     "q05": 150000.0,
+     "q95": 150000.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "removed_kzt": {
+     "mean": 9340000.0,
+     "q05": 9340000.0,
+     "q95": 9340000.0,
+     "n_trials": 100,
+     "n_valid": 100
+    },
+    "removed_kzt_share": {
+     "mean": 0.9841938883034771,
+     "q05": 0.9841938883034773,
+     "q95": 0.9841938883034773,
+     "n_trials": 100,
+     "n_valid": 100
+    }
+   }
+  }
+ },
+ "comparisons": {
+  "0": {
+   "degree": {
+    "weak_pair_loss": {
+     "priority": 0.0,
+     "reference_mean": 0.0,
+     "priority_minus_reference": 0.0,
+     "reference_fraction_ge_priority": 1.0,
+     "n_valid_reference": 1
+    },
+    "seed_reach_loss": {
+     "priority": null,
+     "reference_mean": null,
+     "priority_minus_reference": null,
+     "reference_fraction_ge_priority": null,
+     "n_valid_reference": 0
+    },
+    "removed_kzt_share": {
+     "priority": 0.0,
+     "reference_mean": 0.0,
+     "priority_minus_reference": 0.0,
+     "reference_fraction_ge_priority": 1.0,
+     "n_valid_reference": 1
+    }
+   },
+   "matched_random": {
+    "weak_pair_loss": {
+     "priority": 0.0,
+     "reference_mean": 0.0,
+     "priority_minus_reference": 0.0,
+     "reference_fraction_ge_priority": 1.0,
+     "n_valid_reference": 100
+    },
+    "seed_reach_loss": {
+     "priority": null,
+     "reference_mean": null,
+     "priority_minus_reference": null,
+     "reference_fraction_ge_priority": null,
+     "n_valid_reference": 0
+    },
+    "removed_kzt_share": {
+     "priority": 0.0,
+     "reference_mean": 0.0,
+     "priority_minus_reference": 0.0,
+     "reference_fraction_ge_priority": 1.0,
+     "n_valid_reference": 100
+    }
+   },
+   "random": {
+    "weak_pair_loss": {
+     "priority": 0.0,
+     "reference_mean": 0.0,
+     "priority_minus_reference": 0.0,
+     "reference_fraction_ge_priority": 1.0,
+     "n_valid_reference": 100
+    },
+    "seed_reach_loss": {
+     "priority": null,
+     "reference_mean": null,
+     "priority_minus_reference": null,
+     "reference_fraction_ge_priority": null,
+     "n_valid_reference": 0
+    },
+    "removed_kzt_share": {
+     "priority": 0.0,
+     "reference_mean": 0.0,
+     "priority_minus_reference": 0.0,
+     "reference_fraction_ge_priority": 1.0,
+     "n_valid_reference": 100
+    }
+   }
+  },
+  "1": {
+   "degree": {
+    "weak_pair_loss": {
+     "priority": 0.0,
+     "reference_mean": 0.0,
+     "priority_minus_reference": 0.0,
+     "reference_fraction_ge_priority": 1.0,
+     "n_valid_reference": 1
+    },
+    "seed_reach_loss": {
+     "priority": null,
+     "reference_mean": null,
+     "priority_minus_reference": null,
+     "reference_fraction_ge_priority": null,
+     "n_valid_reference": 0
+    },
+    "removed_kzt_share": {
+     "priority": 0.9841938883034773,
+     "reference_mean": 0.9841938883034773,
+     "priority_minus_reference": 0.0,
+     "reference_fraction_ge_priority": 1.0,
+     "n_valid_reference": 1
+    }
+   },
+   "matched_random": {
+    "weak_pair_loss": {
+     "priority": 0.0,
+     "reference_mean": 0.0,
+     "priority_minus_reference": 0.0,
+     "reference_fraction_ge_priority": 1.0,
+     "n_valid_reference": 100
+    },
+    "seed_reach_loss": {
+     "priority": null,
+     "reference_mean": null,
+     "priority_minus_reference": null,
+     "reference_fraction_ge_priority": null,
+     "n_valid_reference": 0
+    },
+    "removed_kzt_share": {
+     "priority": 0.9841938883034773,
+     "reference_mean": 0.9841938883034771,
+     "priority_minus_reference": 2.220446049250313e-16,
+     "reference_fraction_ge_priority": 1.0,
+     "n_valid_reference": 100
+    }
+   },
+   "random": {
+    "weak_pair_loss": {
+     "priority": 0.0,
+     "reference_mean": 0.0,
+     "priority_minus_reference": 0.0,
+     "reference_fraction_ge_priority": 1.0,
+     "n_valid_reference": 100
+    },
+    "seed_reach_loss": {
+     "priority": null,
+     "reference_mean": null,
+     "priority_minus_reference": null,
+     "reference_fraction_ge_priority": null,
+     "n_valid_reference": 0
+    },
+    "removed_kzt_share": {
+     "priority": 0.9841938883034773,
+     "reference_mean": 0.5197154899894626,
+     "priority_minus_reference": 0.4644783983140147,
+     "reference_fraction_ge_priority": 0.25,
+     "n_valid_reference": 100
+    }
+   }
+  }
+ },
+ "removals": {
+  "priority": [
+   "100000003684369100"
+  ],
+  "degree": [
+   "100000003684369100"
+  ]
+ },
+ "interpretation": "Гипотеза о структурной роли в наблюдаемом графе; не вывод о виновности или будущем движении денег.",
+ "caveats": [
+  "Удаление статическое: узлы убираются из наблюдаемого графа, перенаправление потоков не моделируется.",
+  "Оборот удалённых рёбер — исторические переводы за июль, а не предотвращённый будущий ущерб.",
+  "5–95-й перцентили случайных сценариев описывают их разброс, это не доверительный интервал среднего.",
+  "Degree — чисто структурный контроль; AML-приоритет не оптимизирован под разрушение сети и может уступать ему.",
+  "Результат — гипотеза о структурной роли узлов в наблюдаемом графе, не вывод о виновности."
+ ]
+}

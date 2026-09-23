@@ -13,6 +13,7 @@ import { Icon } from './components/Icon'
 import CopilotPanel from './copilot/CopilotPanel'
 import type { CopilotAnswer } from './copilot/api'
 import { answerHighlights, includeEvidence } from './copilot/graph'
+import ResiliencePanel from './resilience/ResiliencePanel'
 
 const initialFilters: FilterState = {
   search: '',
@@ -167,6 +168,9 @@ export default function App() {
         >
           <Icon name="spark" size={21} />
         </button>
+        <a className="rail-link" href="#resilience" aria-label="Устойчивость сети" onClick={() => setFocusMode(false)}>
+          <Icon name="nodes" size={20} />
+        </a>
         <span className="rail-spacer" />
         <a className="rail-link" href="#methodology" aria-label="О данных и ограничениях" onClick={() => setFocusMode(false)}>
           <Icon name="info" size={20} />
@@ -286,6 +290,7 @@ export default function App() {
                 </aside>
               </section>
               <PriorityTable rows={data.topNodes} selectedId={selectedId} onSelect={focusNode} />
+              <ResiliencePanel data={data} onSelect={focusNode} />
               <footer className="page-footer" id="methodology">
                 <div className="footer-brand">
                   TAYMAS <span>FINANCIAL INTELLIGENCE</span>
