@@ -20,12 +20,16 @@ export function NodeInspector({
   rank,
   onSelect,
   onClose,
+  onSave,
+  canSave,
 }: {
   node: NodeRecord
   edges: EdgeRecord[]
   rank?: number
   onSelect: (gid: string) => void
   onClose: () => void
+  onSave?: () => void
+  canSave?: boolean
 }) {
   const { incoming, outgoing } = nodeNeighbors(node.gid, edges)
   const flows = summarizeNodeFlows(node.gid, edges)
@@ -42,6 +46,7 @@ export function NodeInspector({
           <Icon name="close" size={16} />
         </button>
       </div>
+      {onSave && <button className="case-save-action" onClick={onSave} disabled={!canSave}><Icon name="folder" size={15} />Добавить узел в дело</button>}
       <div
         className="node-tags"
         aria-label={`Роль: ${node.role}; seed: ${node.is_seed ? 'да' : 'нет'}`}
