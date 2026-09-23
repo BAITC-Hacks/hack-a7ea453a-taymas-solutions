@@ -121,6 +121,15 @@ def test_invalid_top_size(tables, count):
         run(*tables[:2], top_n=count)
 
 
+def test_graph_smaller_than_twenty_nodes_ranks_all(tables):
+    priority, roles, *_ = tables
+    small, small_roles = priority.head(6), roles.head(6)
+    assert run(small, small_roles, top_n=6).gid.tolist() == small.gid.tolist()
+    for count in (5, 7):
+        with pytest.raises(ValueError):
+            run(small, small_roles, top_n=count)
+
+
 def test_complete_roles_required_but_final_score_optional(tables):
     priority, roles, *_ = tables
     assert len(run(priority, roles[["gid", "role"]])) == 20
