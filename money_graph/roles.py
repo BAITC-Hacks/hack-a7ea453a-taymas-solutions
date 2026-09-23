@@ -7,19 +7,22 @@
   C1         coordinator   ≥5 плательщиков и ≥10 получателей
   C2         coordinator   ≥3 плательщика, ≥10 получателей и возвратный цикл длиной ≥3
   D1         distributor   ≥10 получателей
-  K1         consolidator  ≥3 плательщика или ≥2 плательщика-seed
+  K1         consolidator  ≥3 плательщика или ≥2 плательщика-seed,
+                           и отток не превышает 1.2 × видимого входа
   T1         transit       не seed, pass_through 0.8–1.2
-  T2         transit       не seed, pass_through 0.5–2.0 и ≥80% оттока ушло за ≤2 дня
-  T3         transit       seed с оттоком ≥50 тыс. (вход seed не наблюдаем — роль по оттоку)
+  T2         transit       не seed, pass_through 0.5–1.2 и ≥80% оттока ушло за ≤2 дня
   E1         terminal      исходящие наблюдаемы (depth<4), удержано ≥80%,
                            и ≥100 тыс. KZT, или ≥2 плательщика, или ≥3 перевода
   P-trunc    peripheral    depth=4: отток не наблюдаем, признаков сбора нет
-  P-ext      peripheral    отдаёт больше, чем получил в графе: источник вне выгрузки
-  P          peripheral    ниже порогов всех ролей
+  P-ext      peripheral    не seed, отдал > 1.2 × видимого входа: источник вне выгрузки
+  P          peripheral    ниже порогов всех ролей; seed с оттоком — роль не определяется
 
-Ловушки: depth=4 никогда не получает terminal (E1 требует out_observable);
-seed не получает transit/terminal по pass_through (T1/T2 только для не-seed,
-у seed in_kzt занижен).
+Ловушки:
+  * depth=4 никогда не получает terminal (E1 требует out_observable);
+  * граф собран по исходящим, входящие видны только от клиентов выборки: узел,
+    отдавший больше видимого входа, не получает ни consolidator (K1), ни transit (T1/T2);
+  * у seed вход занижен: transit и terminal по pass_through для seed не применяются,
+    а по одному оттоку роль seed не определяется.
 """
 
 import numpy as np
@@ -45,11 +48,11 @@ def rule_masks(df: pd.DataFrame) -> list[tuple[str, str, pd.Series]]:
                               & (df.n_receivers >= C.COORD_MIN_RECEIVERS)
                               & (df.min_cycle_len >= C.COORD_CYCLE_MIN_LEN)),
         ("D1", "distributor", df.n_receivers >= C.DISTR_MIN_RECEIVERS),
-        ("K1", "consolidator", (df.n_payers >= C.CONS_MIN_PAYERS) | (df.n_seed_payers >= C.CONS_MIN_SEED_PAYERS)),
+        ("K1", "consolidator", ((df.n_payers >= C.CONS_MIN_PAYERS) | (df.n_seed_payers >= C.CONS_MIN_SEED_PAYERS))
+                               & ~df.external_inflow_suspected),
         ("T1", "transit", has_io & pt.between(C.TRANSIT_PT_LO, C.TRANSIT_PT_HI)),
         ("T2", "transit", has_io & pt.between(C.TRANSIT_WIDE_PT_LO, C.TRANSIT_WIDE_PT_HI)
                           & (df.fast_out_share >= C.TRANSIT_WIDE_MIN_FAST_SHARE)),
-        ("T3", "transit", df.is_seed & (df.out_kzt >= C.SEED_TRANSIT_MIN_OUT_KZT)),
         ("E1", "terminal", df.out_observable & (df.in_deg > 0)
                            & ((df.out_deg == 0) | (pt <= C.TERMINAL_MAX_PT))
                            & ((df.in_kzt >= C.TERMINAL_MIN_KZT) | (df.n_payers >= C.TERMINAL_MIN_PAYERS)
@@ -82,7 +85,6 @@ def role_scores(df: pd.DataFrame) -> pd.Series:
               - 0.1 * df.truncated_by_depth,
         "T1": 0.6 + 0.2 * closeness_to_1 + 0.2 * fast,
         "T2": 0.45 + 0.1 * closeness_to_1 + 0.2 * fast,
-        "T3": 0.35 + 0.15 * _sat(df.out_kzt, 5e4, 1e6) + 0.1 * (df.n_receivers <= 3),
         "E1": 0.5 + 0.2 * _sat(retention, 0.8, 1.0) + 0.15 * _sat(df.in_kzt, 1e5, 1e6)
               + 0.15 * _sat(df.in_tx, 1, 5),
         # обрезанный узел: чем больше в него пришло, тем меньше уверенность, что он «пустой»
@@ -152,20 +154,26 @@ def evidence_for(r) -> str:
     elif rule in ("T1", "T2"):
         text = (f"получил {fmt_kzt(r.in_kzt)}, отдал {fmt_kzt(r.out_kzt)} KZT ({_pct(pt)}){_fast(r)} "
                 f"— характерно для транзитного счёта")
-    elif rule == "T3":
-        text = (f"seed, вход извне не виден (занижен); переслал {fmt_kzt(r.out_kzt)} KZT {r.n_receivers} получ. "
-                f"за {r.out_tx} перев. — роль по оттоку, характерно для транзита")
     elif rule == "E1":
-        kept = "дальше не отдавал" if r.out_deg == 0 else f"удержал {_pct(1 - pt)}"
-        text = (f"получил {fmt_kzt(r.in_kzt)} KZT {_payers(r)} за {r.in_tx} перев., {kept}; "
-                f"отток наблюдаем (колено {r.depth}<{C.MAX_DEPTH}) — деньги остаются")
+        kept = (f"дальше внутри банка переводов ≥{fmt_kzt(C.MIN_TX_KZT)} нет" if r.out_deg == 0
+                else f"дальше внутри банка ушло {_pct(pt)}")
+        text = (f"получил {fmt_kzt(r.in_kzt)} KZT {_payers(r)} за {r.in_tx} перев., {kept} "
+                f"(колено {r.depth}<{C.MAX_DEPTH}, отток наблюдаем) — признаки конечного получателя")
     elif rule == "P-trunc":
         text = (f"получил {fmt_kzt(r.in_kzt)} KZT {_payers(r)}; исходящие не наблюдаемы: обход остановлен "
                 f"на {C.MAX_DEPTH}-м колене — не terminal, нужен запрос выписки")
     elif rule == "P-ext":
-        ratio = r.out_kzt / r.in_kzt if r.in_kzt else np.inf
-        text = (f"получил {fmt_kzt(r.in_kzt)}, отдал {fmt_kzt(r.out_kzt)} KZT (×{ratio:.1f}) {r.n_receivers} получ. "
-                f"— вероятен источник вне выгрузки; ниже порогов ролей")
+        cover = f"видимый вход покрывает {_pct(r.in_kzt / r.out_kzt)} оттока"
+        if r.n_payers >= C.CONS_MIN_PAYERS or r.n_seed_payers >= C.CONS_MIN_SEED_PAYERS:
+            text = (f"получает {fmt_kzt(r.in_kzt)} KZT {_payers(r)}, но отдал {fmt_kzt(r.out_kzt)} {r.n_receivers} получ.: "
+                    f"{cover} — вероятен источник вне выгрузки, сбор не засчитан как консолидация")
+        else:
+            text = (f"получил {fmt_kzt(r.in_kzt)}, отдал {fmt_kzt(r.out_kzt)} KZT {r.n_receivers} получ.: "
+                    f"{cover} — вероятен источник вне выгрузки; ниже порогов ролей")
+    elif r.is_seed and r.out_deg > 0:
+        seen_in = f", видимый вход {fmt_kzt(r.in_kzt)}" if r.in_deg else ""
+        text = (f"seed, вход извне не наблюдаем{seen_in}; отдал {fmt_kzt(r.out_kzt)} KZT {r.n_receivers} получ. "
+                f"за {r.out_tx} перев. — по оттоку роль не определяется")
     else:
         if r.in_deg == 0:
             flow = f"{seed}отдал {fmt_kzt(r.out_kzt)} KZT {r.n_receivers} получ."

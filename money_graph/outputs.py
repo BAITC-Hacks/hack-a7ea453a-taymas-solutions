@@ -43,8 +43,11 @@ class OutputSchemaError(ValueError):
 
 def nodes_roles_table(df: pd.DataFrame) -> pd.DataFrame:
     out = df[REQUIRED + EXTRA].sort_values("gid").reset_index(drop=True)
-    out["gid"] = out.gid.astype("int64")
-    out["cluster_id"] = out.cluster_id.astype("int64")
+    # целый тип только при полной колонке: пропуски должна поймать validate_outputs
+    # (понятная ошибка, код выхода 3), а не astype с traceback
+    for col in ("gid", "cluster_id"):
+        if out[col].notna().all():
+            out[col] = out[col].astype("int64")
     floats = out.select_dtypes("float").columns
     out[floats] = out[floats].round(FLOAT_ROUND)
     return out

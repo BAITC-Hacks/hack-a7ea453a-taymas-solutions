@@ -56,7 +56,7 @@ python -m money_graph --data data --out out
 | `pass_through` | NaN | 0 (если есть вход) |
 | `pass_through_reliable` | NaN; также NaN у seed (вход занижен) и у depth=4 (выход не виден) | 0 |
 | `top_payer_share` / `top_receiver_share` | NaN | NaN |
-| `fast_out_share`, `median_lag_days` | NaN (нет поступления до перевода) | NaN |
+| `fast_out_share`, `median_lag_days` | NaN — ни одному переводу не предшествовало поступление (в т.ч. вход пришёл уже после оттока) | NaN |
 | `sync_payers_max` | 0 | — |
 | `min_cycle_len` | 0 — узел не входит ни в один цикл | |
 
@@ -71,7 +71,7 @@ python -m money_graph --data data --out out
 | `in_underestimated` | seed: входящие извне выборки не видны |
 | `truncated_by_depth` | колонка из starter: `boundary_depth4 и out_deg = 0` (на датасете совпадает с `boundary_depth4`) |
 | `boundary` | итог: `full` / `out_hidden` (depth=4) / `in_hidden` (seed) / `isolated` (нет рёбер) |
-| `external_inflow_suspected` | не seed, отдал > 1.2 × полученного в графе → у денег есть источник вне выгрузки |
+| `external_inflow_suspected` | не seed, отдал > 1.2 × полученного в графе → у денег есть источник вне выгрузки; такой узел не получает `consolidator` и `transit` |
 
 ## 5. Таблица направленных рёбер: `out/edge_table.csv`
 

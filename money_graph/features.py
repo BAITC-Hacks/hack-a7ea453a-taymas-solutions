@@ -175,8 +175,10 @@ def temporal_features(tx: pd.DataFrame, df: pd.DataFrame) -> pd.DataFrame:
     m["fast"] = m.lag <= C.FAST_TRANSIT_DAYS
     m["fast_kzt"] = np.where(m.fast, m.sum_kzt, 0.0)
     lag = m.groupby("gid").agg(fast_kzt=("fast_kzt", "sum"), out_sum=("sum_kzt", "sum"),
-                               median_lag_days=("lag", "median"))
-    lag["fast_out_share"] = lag.fast_kzt / lag.out_sum
+                               median_lag_days=("lag", "median"), n_with_prior_in=("in_date", "count"))
+    # если ни одному исходящему переводу не предшествовало поступление (узел без входящих
+    # или всё отправил раньше, чем получил), скорость транзита не определена — NaN, а не 0
+    lag["fast_out_share"] = (lag.fast_kzt / lag.out_sum).where(lag.n_with_prior_in > 0)
 
     sync = inc.groupby(["gid", "date"]).cp.nunique().groupby("gid").max().rename("sync_payers_max")
     both = pd.concat([inc[["gid", "date"]], out[["gid", "date"]]])

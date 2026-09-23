@@ -72,6 +72,25 @@ def test_input_error_exits_with_code_2(tmp_path):
     assert not (tmp_path / "out").exists()                             # на ошибке ничего не пишем
 
 
+def test_missing_cluster_id_exits_with_code_3(mini_dir, tmp_path, monkeypatch, capsys):
+    """Пропуск в cluster_id — понятная ошибка схемы, а не traceback из astype."""
+    import money_graph.pipeline as pipeline
+
+    real = pipeline.assign_clusters
+
+    def broken(df, edges, nodes):
+        df, clusters = real(df, edges, nodes)
+        df.loc[df.index[0], "cluster_id"] = np.nan
+        return df, clusters
+
+    monkeypatch.setattr(pipeline, "assign_clusters", broken)
+    with pytest.raises(SystemExit) as exc:
+        main(["--data", str(mini_dir), "--out", str(tmp_path / "out")])
+    assert exc.value.code == 3
+    assert "обязательные поля заполнены" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()
+
+
 # ---------------------------------------------------------------- проверки выгрузок ловят поломки
 
 def _mutate_nr(fn):
