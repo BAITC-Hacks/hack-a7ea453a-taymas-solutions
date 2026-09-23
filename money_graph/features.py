@@ -157,11 +157,16 @@ def boundary_features(df: pd.DataFrame) -> pd.DataFrame:
 def temporal_features(tx: pd.DataFrame, df: pd.DataFrame) -> pd.DataFrame:
     """Временные паттерны по отдельным транзакциям.
 
-    * fast_out_share — доля исходящей суммы, ушедшей не позже FAST_TRANSIT_DAYS дней
-      после ближайшего предшествующего поступления (сквозной транзит);
-    * median_lag_days — медианная задержка «последнее поступление → перевод дальше»;
+    * fast_out_share — доля наблюдаемой исходящей суммы в окне 0..FAST_TRANSIT_DAYS
+      календарных дней от последнего видимого поступления, независимо от его суммы;
+    * median_lag_days — медиана разности дат выхода и последнего видимого входа
+      по исходящим переводам с таким входом (без взвешивания по сумме);
     * sync_payers_max — максимум разных плательщиков, заплативших узлу в один день;
     * max_tx_per_day, active_days — всплески активности.
+
+    Сопоставляются только даты, не объёмы и не происхождение денег. Порядок
+    внутри дня неизвестен; вход и выборка неполны. Близость дат не доказывает
+    движение тех же средств, даже если fast_out_share == 1.
     """
     t = tx[["src", "dst", "date", "sum_kzt"]].copy()
     inc = t.rename(columns={"dst": "gid", "src": "cp"})
@@ -177,7 +182,7 @@ def temporal_features(tx: pd.DataFrame, df: pd.DataFrame) -> pd.DataFrame:
     lag = m.groupby("gid").agg(fast_kzt=("fast_kzt", "sum"), out_sum=("sum_kzt", "sum"),
                                median_lag_days=("lag", "median"), n_with_prior_in=("in_date", "count"))
     # если ни одному исходящему переводу не предшествовало поступление (узел без входящих
-    # или всё отправил раньше, чем получил), скорость транзита не определена — NaN, а не 0
+    # или всё отправил раньше видимого входа), близость дат не определена — NaN, а не 0
     lag["fast_out_share"] = (lag.fast_kzt / lag.out_sum).where(lag.n_with_prior_in > 0)
 
     sync = inc.groupby(["gid", "date"]).cp.nunique().groupby("gid").max().rename("sync_payers_max")

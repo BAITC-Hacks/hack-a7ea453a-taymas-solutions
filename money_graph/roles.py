@@ -10,7 +10,8 @@
   K1         consolidator  ≥3 плательщика или ≥2 плательщика-seed,
                            и отток не превышает 1.2 × видимого входа
   T1         transit       не seed, pass_through 0.8–1.2
-  T2         transit       не seed, pass_through 0.5–1.2 и ≥80% оттока ушло за ≤2 дня
+  T2         transit       не seed, pass_through 0.5–1.2 и ≥80% оттока в окне
+                           0–2 дня от видимого входа; связь сумм не установлена
   E1         terminal      исходящие наблюдаемы (depth<4), удержано ≥80%,
                            и ≥100 тыс. KZT, или ≥2 плательщика, или ≥3 перевода
   P-trunc    peripheral    depth=4: отток не наблюдаем, признаков сбора нет
@@ -116,7 +117,8 @@ def _pct(x: float) -> str:
 def _fast(r) -> str:
     if pd.isna(r.fast_out_share):
         return ""
-    return f"; {_pct(r.fast_out_share)} оттока ушло за ≤{C.FAST_TRANSIT_DAYS} дн."
+    return (f"; {_pct(r.fast_out_share)} оттока в ≤{C.FAST_TRANSIT_DAYS} дн. от видимого входа"
+            "; связь сумм не установлена")
 
 
 def _cycles(r) -> str:
@@ -156,7 +158,7 @@ def evidence_for(r) -> str:
                 f"— признаки консолидации")
     elif rule in ("T1", "T2"):
         text = (f"получил {fmt_kzt(r.in_kzt)}, отдал {fmt_kzt(r.out_kzt)} KZT ({_pct(pt)}){_fast(r)} "
-                f"— характерно для транзитного счёта")
+                f"— гипотеза транзита")
     elif rule == "E1":
         kept = (f"дальше внутри банка переводов ≥{fmt_kzt(C.MIN_TX_KZT)} нет" if r.out_deg == 0
                 else f"дальше внутри банка ушло {_pct(pt)}")
