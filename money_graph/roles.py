@@ -5,7 +5,7 @@
 
   isolated   peripheral    нет ни одного ребра (19 seed без переводов ≥5 000 KZT)
   C1         coordinator   ≥5 плательщиков и ≥10 получателей
-  C2         coordinator   ≥3 плательщика, ≥10 получателей и возвратный цикл длиной ≥3
+  C2         coordinator   ≥3 плательщика, ≥10 получателей и направленный цикл длиной 3..5
   D1         distributor   ≥10 получателей
   K1         consolidator  ≥3 плательщика или ≥2 плательщика-seed,
                            и отток не превышает 1.2 × видимого входа
@@ -46,7 +46,7 @@ def rule_masks(df: pd.DataFrame) -> list[tuple[str, str, pd.Series]]:
         ("C1", "coordinator", (df.n_payers >= C.COORD_MIN_PAYERS) & (df.n_receivers >= C.COORD_MIN_RECEIVERS)),
         ("C2", "coordinator", (df.n_payers >= C.COORD_CYCLE_MIN_PAYERS)
                               & (df.n_receivers >= C.COORD_MIN_RECEIVERS)
-                              & (df.min_cycle_len >= C.COORD_CYCLE_MIN_LEN)),
+                              & df.has_long_cycle),
         ("D1", "distributor", df.n_receivers >= C.DISTR_MIN_RECEIVERS),
         ("K1", "consolidator", ((df.n_payers >= C.CONS_MIN_PAYERS) | (df.n_seed_payers >= C.CONS_MIN_SEED_PAYERS))
                                & ~df.external_inflow_suspected),
@@ -134,10 +134,13 @@ def evidence_for(r) -> str:
     seed = "seed, вход извне не виден; " if r.is_seed else ""
     if rule == "isolated":
         text = "seed без переводов ≥5 000 KZT внутри банка за июль: связей в выгрузке нет, роль не определяется"
-    elif rule in ("C1", "C2"):
-        why = "возврат денег через посредников" if rule == "C2" else "сбор и веерная рассылка"
+    elif rule == "C2":
+        text = (f"{seed}есть направл. цикл длиной {C.COORD_CYCLE_MIN_LEN}–{C.CYCLE_MAX_LEN}; "
+                f"вход {fmt_kzt(r.in_kzt)} KZT {_payers(r)}, выход {fmt_kzt(r.out_kzt)} KZT "
+                f"{r.n_receivers} получ. — гипотеза координации")
+    elif rule == "C1":
         text = (f"{seed}получает {fmt_kzt(r.in_kzt)} KZT {_payers(r)}, рассылает {fmt_kzt(r.out_kzt)} "
-                f"{r.n_receivers} получ.; охват вниз {r.downstream_reach} узл.{_cycles(r)} — {why}, признаки координации")
+                f"{r.n_receivers} получ.; охват вниз {r.downstream_reach} узл.{_cycles(r)} — сбор и веерная рассылка, признаки координации")
     elif rule == "D1":
         text = (f"{seed}рассылает {fmt_kzt(r.out_kzt)} KZT {r.n_receivers} получ. за {r.out_tx} перев., "
                 f"крупнейшему {_pct(r.top_receiver_share)}{_fast(r)} — веерное распределение")
