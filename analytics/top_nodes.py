@@ -12,6 +12,7 @@ from pandas.api.types import is_integer_dtype, is_numeric_dtype
 ROLES = frozenset({"consolidator", "transit", "distributor", "terminal",
                    "coordinator", "peripheral"})
 TOP_COLUMNS = ["rank", "gid", "role", "priority_score", "why"]
+MIN_TOP = 20                # ТЗ: top_nodes.csv не короче 20 строк
 
 
 def _require(condition, message):
@@ -51,12 +52,16 @@ def _close(actual, expected, name):
              f"{name}: значения не совпадают")
 
 
-def rank_candidates(priority: pd.DataFrame, top_n: int = 20) -> pd.DataFrame:
-    """Предварительный рейтинг без ролей: НЕ готовая схема top_nodes.csv."""
-    _require(isinstance(top_n, Integral) and not isinstance(top_n, bool)
-             and top_n >= 20, "top_n: нужно целое число >= 20")
+def rank_candidates(priority: pd.DataFrame, top_n: int = MIN_TOP) -> pd.DataFrame:
+    """Предварительный рейтинг без ролей: НЕ готовая схема top_nodes.csv.
+
+    top_n не меньше MIN_TOP; на графе меньше MIN_TOP узлов — все узлы.
+    """
+    _require(isinstance(top_n, Integral) and not isinstance(top_n, bool),
+             "top_n: нужно целое число")
     _columns(priority, ["gid", "priority_score", "why"], "priority")
     _key(priority, "gid", "priority")
+    _require(top_n >= min(MIN_TOP, len(priority)), f"top_n: нужно не меньше {MIN_TOP}")
     _require(len(priority) >= top_n, "недостаточно узлов для top_n")
     _numbers(priority.priority_score, "priority.priority_score", upper=1)
     _require(bool(priority.why.map(lambda x: isinstance(x, str) and bool(x.strip())).all()),
@@ -71,7 +76,7 @@ def rank_candidates(priority: pd.DataFrame, top_n: int = 20) -> pd.DataFrame:
 
 
 def run(priority: pd.DataFrame, nodes_roles: pd.DataFrame,
-        top_n: int = 20) -> pd.DataFrame:
+        top_n: int = MIN_TOP) -> pd.DataFrame:
     """Итоговый топ; нужны реальные gid/role для полного набора узлов.
 
     Дополнительный priority_score в nodes_roles проверяется без округления.

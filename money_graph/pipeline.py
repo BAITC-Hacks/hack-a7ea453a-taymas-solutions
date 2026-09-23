@@ -17,7 +17,7 @@ from .features import build_features
 from .graph import build_graph, edge_table, edge_table_for_csv
 from .io import InputReport, load, validate_inputs
 from .outputs import OUTPUT_FILES, nodes_roles_table, to_csv_bytes, validate_outputs
-from .ranking import assign_clusters, assign_priority, top_nodes_table
+from .ranking import assign_clusters, assign_priority, audit_top_nodes, top_nodes_table
 from .roles import assign_roles
 
 
@@ -59,7 +59,7 @@ def run(data_dir: Path) -> RunResult:
     with stage("кластеры"):
         df, clusters = assign_clusters(df, edges, nodes)
     with stage("приоритет и топ-лист"):
-        df = assign_priority(df)
+        df = assign_priority(df, edges, nodes)
         top = top_nodes_table(df)
     with stage("сборка и проверка выгрузок"):
         tables = {
@@ -70,6 +70,7 @@ def run(data_dir: Path) -> RunResult:
         }
         assert list(tables) == list(OUTPUT_FILES)
         checks = validate_outputs(tables["nodes_roles.csv"], nodes, clusters, top)
+        checks.append(audit_top_nodes(tables["nodes_roles.csv"], top, edges, nodes, clusters))
         files = {name: to_csv_bytes(t) for name, t in tables.items()}
 
     return RunResult(tables=tables, files=files, features=df, input_report=input_report,

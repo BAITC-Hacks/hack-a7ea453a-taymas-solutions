@@ -6,7 +6,7 @@ python -m analytics.priority --data data --out out
 
 Около 2 с, из них 1,5 с занимает пересчёт кластеров. Пишет `out/priority.csv` (строка на каждый из 2 248 gid) и печатает проверку устойчивости весов.
 
-В пайплайн модуль подключается так: `analytics.priority.run(edges, nodes, node_clusters)`, где `node_clusters` — первый результат `analytics.clustering.run`. Функция ничего не пишет на диск.
+В основном пайплайне `python -m money_graph` модуль вызывается из `money_graph/ranking.py`: `analytics.priority.run(edges, nodes, node_clusters)`, где `node_clusters` — первый результат `analytics.clustering.run`. Функция ничего не пишет на диск. Скор, `why` (в `nodes_roles.csv` — колонка `priority_why`), `contrib_*` и `boundary_factor` попадают в `nodes_roles.csv`, топ по скору — в `top_nodes.csv`.
 
 ## Что отвечает скор
 
