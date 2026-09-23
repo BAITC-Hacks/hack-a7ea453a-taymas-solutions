@@ -8,11 +8,6 @@ ROLES = {"consolidator", "transit", "distributor", "terminal", "coordinator", "p
 NODE_FIELDS = ("role", "priority_score", "role_score", "in_kzt", "out_kzt", "in_tx", "out_tx",
                "n_payers", "n_receivers", "depth", "is_seed", "contrib_collect", "contrib_fanout",
                "contrib_flow", "contrib_seed", "contrib_bridge", "contrib_volume", "boundary_factor")
-NEXT_STEPS = {
-    "statements": "Запросить выписки по указанным gid и сверить видимые входящие и исходящие переводы.",
-    "payers": "Сопоставить плательщиков указанных gid, даты переводов и основания платежей.",
-    "boundary": "Запросить продолжение исходящих переводов за границей обхода; отсутствие рёбер не доказывает оседание денег.",
-}
 WARNING_TEXT = {
     "depth4_outflow_unobserved": "4-е колено: исходящие не выгружались; отсутствие оттока не доказывает оседание денег.",
     "seed_inflow_underestimated": "Входящие seed извне выборки не наблюдаются: видимая сумма входа неполная.",
@@ -31,16 +26,16 @@ def empty_answer(question: str, intent="other", *, code: str, message: str) -> A
 
 
 def compose(request: Request, intent: str, calls: list[dict], results: list[dict]) -> Answer:
+    from agent_tools.answer import NEXT_STEPS, render_summary
+
     nodes, edges, candidates = {}, {}, []
     truncated = False
-    collectors_found = False
     for result in results:
         rows = ([result["node"]] if "node" in result else [])
         for key in ("nodes", "candidates", "collectors"):
             rows += result.get(key, [])
         if "collectors" in result:
             candidates = [parse_gid(n["gid"]) for n in result["collectors"]]
-            collectors_found = bool(candidates)
             for collector in result["collectors"]:
                 for payer in collector.get("sources_reached", []):
                     if payer.get("direct_sum_kzt") is not None:
@@ -102,37 +97,16 @@ def compose(request: Request, intent: str, calls: list[dict], results: list[dict
         pool = [g for g in request.selected_gids if g in nodes] or list(nodes)
         candidates = sorted(pool, key=lambda g: (-nodes[g].get("priority_score", 0), g))[:MAX_ITEMS]
     status = "ok" if candidates else "empty"
-    if intent == "common_collector":
-        summary = ("Найдены кандидаты на общего сборщика в пределах выбранной глубины. " if collectors_found else
-                   "Общий сборщик в пределах выбранной глубины не наблюдается; более длинные пути не исключены. ")
-    elif intent == "trace":
-        summary = "Показаны наблюдаемые направления переводов выбранного узла. "
-    elif intent == "next_step":
-        summary = "Очередность проверки следует сохранённому priority_score. "
-    else:
-        summary = "Роль и приоритет основаны на наблюдаемых потоках. "
-    if candidates:
-        node = nodes[candidates[0]]
-        summary += (f"gid {candidates[0]}: роль {node['role']}, priority_score {node['priority_score']}; "
-                    f"вход {node['in_kzt']} KZT / {node['in_tx']} переводов, "
-                    f"выход {node['out_kzt']} KZT / {node['out_tx']} переводов. ")
-        components = {"contrib_collect": "сбор", "contrib_fanout": "рассылка", "contrib_flow": "характер потока",
-                      "contrib_seed": "связь с seed", "contrib_bridge": "связь кластеров", "contrib_volume": "объём"}
-        strongest = sorted((f for f in components if node.get(f, 0) > 0), key=lambda f: (-node[f], f))[:3]
-        if strongest:
-            summary += "Основные слагаемые приоритета до поправки границы: " + ", ".join(
-                f"{components[f]} {node[f]}" for f in strongest) + ". "
-            if node.get("boundary_factor") is not None:
-                summary += f"Множитель границы {node['boundary_factor']}. "
-    summary += "Это гипотеза для проверки."
     gids = sorted(set(nodes) | {g for pair in edges for g in pair})
     step = "boundary" if any(w["code"] == "depth4_outflow_unobserved" for w in warnings) else (
         "payers" if intent == "common_collector" else "statements")
-    return {"question": request.question, "intent": intent, "provider": "fallback", "status": status,
-            "summary": summary, "gids": gids, "claims": claims,
+    answer = {"question": request.question, "intent": intent, "provider": "fallback", "status": status,
+            "summary": "", "gids": gids, "claims": claims,
             "candidates": [{"gid": g, "role": nodes[g]["role"], "priority_score": nodes[g]["priority_score"]}
                            for g in candidates],
             "evidence": [{"claim_index": i} for i in range(len(claims))],
             "sources": [c["source"] for c in claims], "tool_calls": calls, "warnings": warnings,
             "next_steps": [NEXT_STEPS[step]], "fallback_reason": None, "error": None,
             "verification": "unavailable"}
+    answer["summary"] = render_summary(answer)
+    return answer

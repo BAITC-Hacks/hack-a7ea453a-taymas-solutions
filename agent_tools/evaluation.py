@@ -26,7 +26,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from . import GraphStore, GraphTools, call_tool
-from .answer import cluster_claim, edge_claim, node_claim
+from .answer import NEXT_STEPS, cluster_claim, edge_claim, node_claim, render_summary
 from .verifier import verify
 
 
@@ -100,10 +100,6 @@ def build_cases(tools: GraphTools) -> list[EvalCase]:
 
 # ---------------------------------------------------------------- эталонный ответчик без LLM
 
-def _kzt(x: float) -> str:
-    return f"{x:,.0f}".replace(",", " ") + " KZT"
-
-
 def template_answer(case: EvalCase, tools: GraphTools) -> dict:
     """Детерминированный ответ из результатов инструментов — эталон для набора и
     нижняя планка качества: любой LLM-ответ должен проходить те же проверки."""
@@ -124,36 +120,30 @@ def template_answer(case: EvalCase, tools: GraphTools) -> dict:
     if case.id == "priority":
         node = results[1]["node"]
         g = node["gid"]
-        ans["summary"] = (f"Первым проверить {g}: роль {node['role']}, priority_score {node['priority_score']}. "
-                          f"Почему: {node['priority_why']}. Роль: {node['evidence']}. Это гипотеза для проверки.")
         ans["claims"] = [node_claim(g, "priority_score", node["priority_score"]), node_claim(g, "role", node["role"]),
                          node_claim(g, "in_kzt", node["in_kzt"])]
         ans["gids"] = [g]
-        ans["next_steps"] = [f"запросить выписку по {g} за июль и сверить плательщиков"]
+        ans["next_steps"] = [NEXT_STEPS["statements"]]
 
     elif case.intent == "common_collector":
         r = results[0]
         start = r["start"]
         if not r["collectors"]:
             ans["status"] = "empty"
-            ans["summary"] = ("Общего сборщика для заданных gid в данных нет: ни один узел не получает деньги "
-                              "от нескольких из них. Гипотеза об общем сборщике не подтверждается.")
             ans["claims"] = [node_claim(g, "out_deg", int(store.nodes.at[g, "out_deg"])) for g in start]
             ans["claims"].append({"kind": "not_observed", "gids": start, "text": "не наблюдается общий получатель"})
             ans["gids"] = start
         else:
             c = r["collectors"][0]
             direct = [s for s in c["sources_reached"] if s["direct_sum_kzt"] is not None]
-            ans["summary"] = (f"Признаки общего сборщика у {c['gid']}: до него доходят деньги {c['n_sources']} "
-                              f"из заданных gid, напрямую {_kzt(c['direct_sum_kzt'])} за {c['direct_n_tx']} перев. "
-                              f"Роль {c['role']}, priority_score {c['priority_score']}. Гипотеза для проверки.")
             ans["claims"] = [node_claim(c["gid"], "role", c["role"]),
-                             node_claim(c["gid"], "priority_score", c["priority_score"])]
+                             node_claim(c["gid"], "priority_score", c["priority_score"]),
+                             node_claim(c["gid"], "in_kzt", c["in_kzt"])]
             ans["claims"] += [edge_claim(s["gid"], c["gid"], "sum_kzt", s["direct_sum_kzt"]) for s in direct]
             cid = c["cluster_id"]
             ans["claims"].append(cluster_claim(cid, "n_nodes", int(store.clusters.at[cid, "n_nodes"])))
             ans["gids"] = sorted({c["gid"], *start})
-            ans["next_steps"] = [f"сравнить поступления {c['gid']} от каждого из заданных gid по датам"]
+            ans["next_steps"] = [NEXT_STEPS["payers"]]
 
     elif case.id == "trace":
         up, down = results
@@ -162,9 +152,6 @@ def template_answer(case: EvalCase, tools: GraphTools) -> dict:
         top_in = e[e.dst == x].sort_values(["sum_kzt", "src"], ascending=[False, True]).iloc[0]
         top_out = e[e.src == x].sort_values(["sum_kzt", "dst"], ascending=[False, True]).iloc[0]
         p, r_ = int(top_in.src), int(top_out.dst)
-        ans["summary"] = (f"К {x} деньги пришли от {len(up['nodes'])} плательщ., крупнейший — {p}: "
-                          f"{_kzt(top_in.sum_kzt)}. Дальше ушли {len(down['nodes'])} получ., крупнейший — {r_}: "
-                          f"{_kzt(top_out.sum_kzt)}. Цепочка — признаки движения средств, гипотеза для проверки.")
         ans["claims"] = [edge_claim(p, x, "sum_kzt", float(top_in.sum_kzt)),
                          edge_claim(x, r_, "sum_kzt", float(top_out.sum_kzt)),
                          node_claim(x, "role", str(store.nodes.at[x, "role"]))]
@@ -173,13 +160,11 @@ def template_answer(case: EvalCase, tools: GraphTools) -> dict:
     elif case.id == "depth4":
         node = results[0]["node"]
         y = node["gid"]
-        ans["summary"] = (f"{y} нельзя считать конечным получателем: узел на 4-м колене, его исходящие переводы "
-                          f"не выгружались. Получено {_kzt(node['in_kzt'])} от {node['n_payers']} плательщ. "
-                          f"Кандидат на запрос выписки — гипотеза для проверки.")
         ans["claims"] = [node_claim(y, "in_kzt", node["in_kzt"]), node_claim(y, "depth", node["depth"]),
                          node_claim(y, "role", node["role"])]
         ans["gids"] = [y]
-        ans["next_steps"] = [f"запросить исходящие переводы {y} за пределами выгрузки"]
+        ans["next_steps"] = [NEXT_STEPS["boundary"]]
+    ans["summary"] = render_summary(ans)
     return ans
 
 
