@@ -2,12 +2,15 @@
 
 from io import StringIO
 from pathlib import Path
+import ast
+import inspect
+import re
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from analytics.top_nodes import TOP_COLUMNS, audit, run
+from analytics.top_nodes import TOP_COLUMNS, audit, rank_candidates, run
 
 
 @pytest.fixture
@@ -62,12 +65,54 @@ def test_bad_scores_rejected(tables, value):
         run(priority, roles)
 
 
-@pytest.mark.parametrize("value", [None, "", "   ", 42])
+@pytest.mark.parametrize("value", [None, "", "   ", 42, "высокий скор"])
 def test_missing_explanations_rejected(tables, value):
     priority, roles, *_ = tables
     priority["why"] = value
     with pytest.raises(ValueError):
         run(priority, roles)
+
+
+def test_preliminary_ranking_without_roles(tables):
+    priority, roles, *_ = tables
+    preliminary = rank_candidates(priority)
+    assert list(preliminary.columns) == ["rank", "gid", "priority_score", "why"]
+    pd.testing.assert_frame_equal(preliminary, run(priority, roles).drop(columns="role"))
+    with pytest.raises(ValueError, match="реальные роли PAN-34"):
+        run(priority, None)
+
+
+@pytest.mark.parametrize("why", ["оборот=0 KZT", "доля=0.25", "fan-out=12; доля=30%"])
+def test_numeric_explanations_preserved(tables, why):
+    priority, roles, *_ = tables
+    assert run(priority.assign(why=why), roles).why.eq(why).all()
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_arbitrary_gid_permutation_preserves_unequal_score_order(tables, seed):
+    priority, roles, *_ = tables
+    priority.priority_score = np.linspace(0, 1, len(priority))
+    roles.priority_score = priority.priority_score
+    old = run(priority, roles)
+    rng = np.random.default_rng(seed)
+    new_ids = rng.choice(np.arange(10000, 100000), len(priority), replace=False)
+    mapping = dict(zip(priority.gid, new_ids))
+    priority.gid = priority.gid.map(mapping)
+    roles.gid = roles.gid.map(mapping)
+    new = run(priority.sample(frac=1, random_state=seed), roles)
+    expected = old.assign(gid=old.gid.map(mapping))
+    pd.testing.assert_frame_equal(new, expected)
+
+
+def test_audit_accepts_minimal_roles_and_reports_skipped_checks(tables):
+    priority, roles, edges, nodes, nc, clusters = tables
+    minimal = roles[["gid", "role"]]
+    report = audit(run(priority, minimal), priority, minimal, edges, nodes, nc, clusters)
+    assert report["checked_nodes_roles_fields"] == []
+    assert set(report["skipped_nodes_roles_fields"]) == {
+        "priority_score", "cluster_id", "in_kzt", "out_kzt"}
+    full = audit(run(priority, roles), *tables)
+    assert full["skipped_nodes_roles_fields"] == []
 
 
 @pytest.mark.parametrize("count", [0, 19, 26, True, 20.5])
@@ -165,6 +210,18 @@ def test_real_graph_cluster_sums_and_csv_contract():
     if not (data / "edges.parquet").exists():
         pytest.skip("реальный датасет не установлен")
     edges, nodes = load_inputs(data)
+    # Статический предохранитель: литералы реальных gid в модуле запрещены.
+    # Это дополняет поведенческие тесты; произвольный hardcode таким поиском
+    # доказательно исключить нельзя (например, вычисляемые константы).
+    import analytics.top_nodes as module
+    literals = set()
+    for item in ast.walk(ast.parse(inspect.getsource(module))):
+        if isinstance(item, ast.Constant):
+            if isinstance(item.value, int):
+                literals.add(item.value)
+            elif isinstance(item.value, str):
+                literals.update(map(int, re.findall(r"\b[0-9]+\b", item.value)))
+    assert not (set(nodes.gid) & literals), "реальные gid захардкожены в analytics.top_nodes"
     nc, clusters = cluster(edges, nodes)
     # Контрактные заглушки, НЕ результаты PAN-36 или классификатора ролей.
     priority = nodes[["gid"]].assign(priority_score=0.5, why="Тест контракта: сигнал=1")
