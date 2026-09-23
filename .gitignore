@@ -18,3 +18,7 @@ data/
 .env
 .env.*
 !.env.example
+
+# Isolated synthetic CI inputs and diagnostics.
+/.ci-data/
+/.ci-artifacts/
