@@ -14,6 +14,7 @@ export function PriorityTable({
   onSelect: (gid: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
+  const visibleRows = expanded ? rows : rows.slice(0, 5)
   return (
     <section className="priority-panel panel" id="priorities" aria-labelledby="priority-heading">
       <div className="priority-heading">
@@ -24,15 +25,16 @@ export function PriorityTable({
           </h2>
         </div>
         <p>Структурные сигналы, которые требуют внимания</p>
-        <button
+        {rows.length > 5 && <button
           className="text-button"
           onClick={() => setExpanded(!expanded)}
           aria-expanded={expanded}
         >
           {expanded ? 'Свернуть' : `Все ${rows.length} клиентов`}
           <Icon name="arrow" size={16} />
-        </button>
+        </button>}
       </div>
+      <p className="priority-count" role="status">Показано {visibleRows.length} из {rows.length} клиентов</p>
       <div className="priority-table" role="table" aria-label="Клиенты по приоритету проверки">
         <div className="table-head" role="row">
           <span role="columnheader">№</span>
@@ -41,7 +43,7 @@ export function PriorityTable({
           <span role="columnheader">Приоритет ↓</span>
           <span role="columnheader">Основание для проверки</span>
         </div>
-        {(expanded ? rows : rows.slice(0, 5)).map((item) => (
+        {visibleRows.map((item) => (
           <div
             role="row"
             key={item.gid}
@@ -60,7 +62,7 @@ export function PriorityTable({
                 }}
                 aria-label={`Открыть клиент ${item.gid}`}
               >
-                {item.gid}
+                <span>{item.gid}</span>
                 <Icon name="arrow" size={14} />
               </button>
             </span>
@@ -86,6 +88,7 @@ export function PriorityTable({
           </div>
         ))}
       </div>
+      {!rows.length && <p className="priority-count">Приоритетных клиентов в выгрузке нет.</p>}
       <div className="table-footer">
         <Icon name="info" size={14} />
         <span>
