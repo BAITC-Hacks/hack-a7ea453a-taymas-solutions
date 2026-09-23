@@ -212,6 +212,9 @@ docker compose up --build -d
 
 ### Команды проверки
 
+Для PR в `main` настроен [CI: Python, frontend и локальный Copilot](docs/ci.md).
+Он использует отдельный синтетический Parquet; проверки на архиве организаторов остаются отдельной частью приёмки.
+
 Следующие Python-команды выполняются из корня проекта интерпретатором `.venv`: замените `python` на `.\.venv\Scripts\python.exe` в Windows или `.venv/bin/python` в macOS/Linux.
 
 ```bash

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
+import { parseCsv } from '../src/csv'
 
 test('node → two local answers → case → JSON/HTML → reload/import and changed CSV', async ({ page, context }) => {
   await page.goto('/')
@@ -65,7 +66,14 @@ test('node → two local answers → case → JSON/HTML → reload/import and ch
   await expect(page.locator('.case-material')).toHaveCount(3)
 
   const csv = readFileSync(new URL('../../out/nodes_roles.csv', import.meta.url), 'utf8')
-  await page.route('**/out/nodes_roles.csv', route => route.fulfill({ contentType: 'text/csv', body: csv.replace('coordinator', 'transit') }))
+  const changedRows = parseCsv(csv)
+  // Keep the cross-file role/top contract valid (PAN-64). A different evidence
+  // value changes the dataset fingerprint without making the CSV unreadable.
+  changedRows[0].evidence = 'Обновлённое наблюдение: 1 перевод требует проверки'
+  const columns = Object.keys(changedRows[0])
+  const changedCsv = [columns, ...changedRows.map(row => columns.map(column => row[column]))]
+    .map(row => row.map(value => `"${value.replaceAll('"', '""')}"`).join(',')).join('\n') + '\n'
+  await page.route('**/out/nodes_roles.csv', route => route.fulfill({ contentType: 'text/csv', body: changedCsv }))
   await page.reload()
   await page.getByRole('button', { name: 'Открыть дело расследования' }).click()
   await expect(page.getByText('Снимок другой выгрузки', { exact: true })).toHaveCount(3)

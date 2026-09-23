@@ -265,7 +265,9 @@ def test_string_gid_from_model_and_no_leaked_context():
     assert result["provider"] == "nvidia"
     schema = client.requests[0]["tools"][0]["function"]["parameters"]
     assert schema["oneOf"][0]["properties"]["gid"]["enum"] == ["11"]
-    assert "12" not in json.dumps(client.requests)
+    # Inspect model context, not the transport timeout (e.g. 7.999794125).
+    context = [{key: call[key] for key in ("messages", "tools")} for call in client.requests]
+    assert "12" not in json.dumps(context)
 
 
 def test_missing_model_does_not_attempt_api(monkeypatch):
