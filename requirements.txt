@@ -4,3 +4,5 @@ networkx==3.6.1       # зафиксирован: от версии зависи
 numpy>=1.24
 scipy>=1.10
 pytest>=8.0
+streamlit>=1.36,<2
+plotly>=5.22,<7
