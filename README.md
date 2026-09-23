@@ -67,6 +67,9 @@ python -m money_graph --data data --out out --check-repro
 Docker Compose запускает локальный API автоматически; для Vite отдельно выполните
 `python -m agent_orchestrator.server --out out`. NVIDIA для локальных ответов не нужна.
 
+Дело расследования (PAN-52): [сохранение узлов и ответов, заметки, импорт JSON и печатная справка](docs/case_file.md).
+Открывается значком папки в интерфейсе; работает локально и отмечает снимки другой версии данных.
+
 ```
 money_graph/          основной пайплайн: python -m money_graph
   config.py           пороги признаков и ролей с обоснованием
