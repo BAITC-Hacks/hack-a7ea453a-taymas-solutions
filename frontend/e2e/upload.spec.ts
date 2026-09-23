@@ -9,13 +9,14 @@ const secondDir = process.env.UPLOAD_SECOND_DATA_DIR
 const names = ['nodes', 'edges', 'transactions'] as const
 
 async function upload(page: Page, directory: string) {
+  await expect(page.getByRole('region', { name: 'Загрузка данных' })).toHaveAttribute('aria-busy', 'false')
   const open = page.getByRole('button', { name: 'Загрузить другой набор', exact: true })
   if (await open.isVisible()) await open.click()
   for (const name of names) await page.getByLabel(`${name}.parquet`, { exact: true }).setInputFiles(path.join(directory, `${name}.parquet`))
   const accepted = page.waitForResponse(r => r.url().endsWith('/api/datasets/jobs') && r.request().method() === 'POST')
   await page.getByRole('button', { name: /Построить граф/ }).click()
   expect((await accepted).status()).toBe(202)
-  await expect(page.getByRole('img', { name: 'Направленный граф транзакционной сети' })).toBeVisible({ timeout: 300_000 })
+  await expect(page.getByRole('img', { name: /^Направленный граф:/ })).toBeVisible({ timeout: 300_000 })
   await expect(page.getByText(/^Анализ завершён/)).toBeVisible({ timeout: 300_000 })
   await expect(page.getByText('Локальный анализ готов', { exact: true })).toBeVisible()
 }
@@ -56,7 +57,7 @@ test('upload Parquet, download CSV, inspect node and ask Copilot; a failed repla
   await expect(page.getByRole('alert')).toContainText('nodes.parquet', { timeout: 30_000 })
   const preserved = await (await request.get('/api/datasets/active')).json()
   expect(preserved.dataset_id).toBe(active.dataset_id)
-  await expect(page.getByRole('img', { name: 'Направленный граф транзакционной сети' })).toBeVisible()
+  await expect(page.getByRole('img', { name: /^Направленный граф:/ })).toBeVisible()
 })
 
 test('a different dataset replaces the graph, clears prior context and rejects stale Copilot version', async ({ page, request }) => {

@@ -121,7 +121,7 @@ export default function DatasetUpload({ data, onDatasetReady, onLegacy, onInitia
     finally { if (!current.signal.aborted) locked.current = false }
   }
 
-  return <section className={`dataset-panel panel ${data ? 'has-dataset' : ''}`} aria-label="Загрузка данных">
+  return <section className={`dataset-panel panel ${data ? 'has-dataset' : ''}`} aria-label="Загрузка данных" aria-busy={busy}>
     <div className="dataset-heading"><div><p className="eyebrow">ИСХОДНЫЕ ДАННЫЕ</p><h2>{data ? 'Набор данных для анализа' : 'Начните с банковской выгрузки'}</h2></div>
       {data && <button className="secondary-button" type="button" onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>{expanded ? 'Свернуть загрузку' : 'Загрузить другой набор'}</button>}
     </div>
