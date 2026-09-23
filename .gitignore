@@ -15,3 +15,8 @@ data/
 .mcp.json
 .claude/
 .money-graph/
+
+# Credentials stay local; only the empty template is tracked.
+.env
+.env.*
+!.env.example
