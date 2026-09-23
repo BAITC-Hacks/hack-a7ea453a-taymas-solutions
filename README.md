@@ -18,6 +18,19 @@ docker compose up --build
 Данные остаются на компьютере в Docker volume. [Запуск и хранение](docs/deployment.md),
 [формат загрузки, ограничения и API](docs/uploads.md).
 
+Если файлы уже распакованы в `data/`, сохранён и запуск локального демо с
+автоматической установкой зависимостей, batch-прогоном и открытием браузера:
+
+```bash
+# Windows (Python 3.11+ и Node.js)
+scripts\run-all.cmd
+# macOS/Linux
+bash scripts/run-all.sh
+```
+
+Для проверки повторяемости скрипта добавьте `-CheckRepro` в Windows или
+`--check-repro` в macOS/Linux. Для нового набора далее достаточно формы в UI.
+
 ### CLI для воспроизводимости жюри
 
 Распакуйте три файла в `data/`. Нужен Python 3.11+ (проверены 3.11 и 3.13).
@@ -33,7 +46,7 @@ python -m money_graph --data data --out out
 
 Полный прогон занимает около 3 секунд на текущей машине. В `out/` появятся `nodes_roles.csv`, `clusters.csv` и `top_nodes.csv`, вспомогательная таблица рёбер `edge_table.csv` и отчёт о прогоне `run_report.md` / `run_report.json`. До расчётов пайплайн проверяет контракт входных данных, перед записью — схему выгрузок и аудит топ-листа (27 проверок).
 
-Для CLI через Docker: `docker compose run --build --rm pipeline`. Этот отдельный
+Для CLI через Docker на macOS/Linux: `./scripts/docker-compose.sh run --build --rm pipeline`. Этот отдельный
 batch-сценарий читает `data/` и записывает результаты в `out/` на хосте.
 
 Чтобы заодно проверить воспроизводимость, добавьте `--check-repro`: пайплайн прогонится второй раз и сверит sha256 всех выгрузок.
@@ -67,6 +80,9 @@ python -m money_graph --data data --out out --check-repro
 Панель помощника в React (PAN-48): [запуск, проверка фактов и демо на 90 секунд](docs/copilot_panel.md).
 Docker Compose запускает локальный API автоматически; для Vite отдельно выполните
 `python -m agent_orchestrator.server --out out`. NVIDIA для локальных ответов не нужна.
+
+Дело расследования (PAN-52): [сохранение узлов и ответов, заметки, импорт JSON и печатная справка](docs/case_file.md).
+Открывается значком папки в интерфейсе; работает локально и отмечает снимки другой версии данных.
 
 ```
 money_graph/          основной пайплайн: python -m money_graph

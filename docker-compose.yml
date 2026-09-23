@@ -5,15 +5,16 @@ services:
       context: .
       dockerfile: Dockerfile
       target: pipeline
-    image: money-graph-pipeline:local
+    image: ${PIPELINE_IMAGE:-money-graph-pipeline:local}
+    user: "${LOCAL_UID:-10001}:${LOCAL_GID:-10001}"
     command: ["--data", "/app/data", "--out", "/app/out", "--check-repro"]
     volumes:
       - type: bind
-        source: ./data
+        source: ${DATA_DIR:-./data}
         target: /app/data
         read_only: true
       - type: bind
-        source: ./out
+        source: ${OUT_DIR:-./out}
         target: /app/out
     restart: "no"
 
@@ -22,7 +23,9 @@ services:
       context: .
       dockerfile: Dockerfile
       target: pipeline
-    image: money-graph-pipeline:local
+    image: ${PIPELINE_IMAGE:-money-graph-pipeline:local}
+    # Owns the named state volume prepared for UID 10001 in the image.
+    # Only the batch pipeline needs the host UID for its writable bind mount.
     entrypoint: ["python", "-m", "agent_orchestrator.server"]
     command: ["--out", "/app/out", "--state", "/app/state", "--host", "0.0.0.0"]
     environment:
@@ -31,9 +34,15 @@ services:
     volumes:
       - datasets:/app/state
       - type: bind
-        source: ./out
+        source: ${OUT_DIR:-./out}
         target: /app/out
         read_only: true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json, urllib.request; r=json.load(urllib.request.urlopen('http://127.0.0.1:8765/api/datasets/active', timeout=2)); assert 'dataset_id' in r"]
+      interval: 3s
+      timeout: 3s
+      start_period: 5s
+      retries: 20
     restart: unless-stopped
 
   ui:
@@ -41,7 +50,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: ui
-    image: money-graph-ui:local
+    image: ${UI_IMAGE:-money-graph-ui:local}
     depends_on:
       copilot:
         condition: service_started
@@ -49,7 +58,7 @@ services:
       - "127.0.0.1:${UI_PORT:-8501}:80"
     volumes:
       - type: bind
-        source: ./out
+        source: ${OUT_DIR:-./out}
         target: /usr/share/nginx/html/out
         read_only: true
     restart: unless-stopped

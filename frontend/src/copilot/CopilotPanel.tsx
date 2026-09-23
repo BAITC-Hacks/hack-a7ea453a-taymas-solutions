@@ -3,10 +3,13 @@ import type { GraphData } from '../types'
 import DataRequestPanel from '../investigation/DataRequestPanel'
 import { askCopilot, copilotStatus, MAX_QUESTION, type Availability, type Claim, type CopilotAnswer } from './api'
 import './copilot.css'
+import { Icon } from '../components/Icon'
 
 interface Props {
   data: GraphData; selectedId?: string; onNavigate: (gid: string) => void
   onAnswer: (answer: CopilotAnswer | null) => void
+  onSaveAnswer?: (answer: CopilotAnswer, question: string) => void
+  canSave?: boolean
 }
 const prompts = ['Почему этот узел в топе?', 'Кто общий сборщик?', 'Какой следующий шаг проверки?']
 const number = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 6 })
@@ -18,7 +21,7 @@ const labels: Record<string, string> = { role: 'Роль', priority_score: 'Пр
 const reasons: Record<string, string> = { timeout: 'AI не ответил вовремя.', quota: 'Лимит AI временно исчерпан.',
   no_api_key: 'AI не настроен.', no_model: 'AI не настроен.', auth: 'AI временно недоступен.' }
 
-export default function CopilotPanel({ data, selectedId, onNavigate, onAnswer }: Props) {
+export default function CopilotPanel({ data, selectedId, onNavigate, onAnswer, onSaveAnswer, canSave }: Props) {
   const [question, setQuestion] = useState('')
   const [context, setContext] = useState<string[]>([])
   const [gidInput, setGidInput] = useState('')
@@ -100,6 +103,7 @@ export default function CopilotPanel({ data, selectedId, onNavigate, onAnswer }:
       {answer && <>
         <div className="copilot-answer-heading"><span className="copilot-answer-label">{answer.status === 'empty' ? 'Совпадений не найдено' : 'Материалы проверки'}</span><span className="copilot-provider">{answer.provider === 'nvidia' ? 'AI + проверка фактов' : 'Локальный ответ'}</span></div>
         <p className="copilot-asked">{asked}</p>
+        {onSaveAnswer && <button className="case-save-action" onClick={() => onSaveAnswer(answer, asked)} disabled={!canSave}><Icon name="folder" size={15} />Сохранить ответ в дело</button>}
         {answer.fallback_reason && <p className="copilot-notice">{reasons[answer.fallback_reason] ?? 'AI временно недоступен.'} Показан проверенный локальный ответ.</p>}
         <p className="copilot-summary">{answer.summary}</p>
         {answer.candidates.length > 0 && <div className="copilot-candidates">{answer.candidates.map((candidate, index) => <div className="copilot-candidate" key={candidate.gid}><span className="copilot-position">{String(index + 1).padStart(2, '0')}</span><div>{link(candidate.gid)}<small>{candidate.role}</small></div><strong title="priority_score">{number.format(candidate.priority_score)}</strong></div>)}</div>}

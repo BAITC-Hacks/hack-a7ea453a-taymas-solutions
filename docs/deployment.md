@@ -15,7 +15,7 @@ docker compose up --build
 Для фонового запуска добавьте `-d`. Остановка с сохранением данных:
 
 ```bash
-docker compose down
+./scripts/docker-compose.sh down
 ```
 
 Загруженные файлы, версии CSV и активный снимок сохраняются в именованном volume
@@ -45,7 +45,7 @@ UI_PORT=8508 docker compose up --build -d
 
 ```bash
 mkdir -p out
-docker compose run --build --rm pipeline
+./scripts/docker-compose.sh run --build --rm pipeline
 ```
 
 `pipeline` входит в профиль `batch` и не является обязательным шагом старта UI.
@@ -55,17 +55,44 @@ docker compose run --build --rm pipeline
 дать те же sha256. Этот batch не заменяет активную браузерную версию: для этого
 загрузите исходные файлы через UI.
 
+### Права batch-выгрузок
+
+Обёртка `scripts/docker-compose.sh` создаёт `out/` от текущего пользователя и
+передаёт его UID/GID **только pipeline** через `LOCAL_UID` / `LOCAL_GID`, чтобы
+Linux-каталог UID 1000 с mode 0755 оставался доступным для записи. `chown` внутри
+image не меняет владельца bind mount. Copilot работает от UID 10001 и пишет
+в свой named volume; подмена его UID владельцем хоста сломала бы права volume.
+`chmod 777` не нужен. `DATA_DIR` и `OUT_DIR` меняют пути bind mounts.
+
+Для прямого batch Compose подготовьте `out/` и экспортируйте
+`LOCAL_UID=$(id -u) LOCAL_GID=$(id -g)`. Обычный browser `docker compose up`
+не пишет в host out и не требует этих переменных. Healthcheck API проверяет
+его доступность, в том числе до загрузки первого набора; готовность анализа
+отдельно сообщает `/api/copilot/status`.
+
 ## Проверки
 
 ```bash
 ./scripts/docker-smoke.sh
+# Явно проверить нестандартный порт и ждать готовности до 90 секунд:
+UI_PORT=18566 SMOKE_TIMEOUT=90 ./scripts/docker-smoke.sh
 ```
 
 Нужны `curl`, Python 3 со стандартной библиотекой и три Parquet в `data/`
-(другую папку можно передать первым аргументом). Скрипт поднимает Docker, загружает
-файлы через HTTP, ожидает готовности, проверяет CSV, версию Copilot и локальный
-ответ с фактами. Он меняет активный набор и останавливает сервисы после проверки,
-сохраняя volume. Для проверки в браузере см. [uploads.md](uploads.md).
+(другая папка — через `DATA_DIR`). Скрипт создаёт изолированный Compose-проект,
+временный out и свободный порт, проверяет batch-права и воспроизводимость,
+загружает те же файлы через HTTP и побайтно сверяет CSV с CLI внутри того же
+окружения Docker. Проверяет статус и реальный fallback/no_api_key, затем
+останавливает свой Copilot и проверяет, что UI и batch CSV в `/out/` доступны.
+Контейнеры, volume и временные данные именно smoke-проекта удаляются;
+работающие пользовательские демо не затрагиваются.
+
+Для проверки браузера: `SMOKE_BROWSER=1 ./scripts/docker-smoke.sh` после
+установки frontend dev-зависимостей и Chromium. Проверка прав PAN-66 на
+Linux-volume в Docker Desktop: UID 10001 не может писать в каталог
+1000:1000/mode0755, pipeline от 1000:1000 успешно создаёт CSV. Это проверка
+Linux-прав внутри VM; отдельный физический Linux-хост и Windows не проверялись.
+Новый browser-сценарий и его ограничения описаны в [uploads.md](uploads.md).
 
 В образе используются Python 3.11 и `networkx==3.6.1`. Хеши сравнивайте между
 прогонами в одном окружении: последние знаки float могут зависеть от ОС.

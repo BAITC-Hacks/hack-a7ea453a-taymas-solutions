@@ -10,7 +10,7 @@
 после загрузки трёх Parquet через браузер:
 
 ```bash
-docker compose up --build -d
+./scripts/docker-compose.sh up --build -d
 # http://localhost:8501
 ```
 
@@ -19,7 +19,9 @@ docker compose up --build -d
 `NVIDIA_API_KEY` и `NVIDIA_MODEL`. Они не входят в image, frontend build и ответ status.
 Порт API не публикуется: браузер обращается к нему через nginx на том же origin.
 Падение Copilot не мешает nginx показывать граф и CSV. `UI_PORT` позволяет изменить
-порт UI, например `UI_PORT=8508 docker compose up --build -d`.
+порт UI, например `UI_PORT=8508 ./scripts/docker-compose.sh up --build -d`.
+Скрипт согласует UID/GID с владельцем `out/` на Linux; подробности и проверка
+реального fallback — в [инструкции Docker](deployment.md).
 
 Для разработки, из корня проекта:
 
@@ -140,6 +142,6 @@ COPILOT_UI_URL=http://127.0.0.1:8501 npm run test:e2e
 | 55–75 с | Оставьте одного кандидата в контексте и отправьте подсказку о следующем шаге | Конкретное действие аналитика и ограничения наблюдаемого графа |
 | 75–90 с | Покажите индикатор «Локальный ответ», измените фильтр и перейдите по gid из ответа | Работа без NVIDIA и явное добавление нужных узлов вне фильтра |
 
-Для показа устойчивости остановите только `copilot` (`docker compose stop copilot`),
+Для показа устойчивости остановите только `copilot` (`./scripts/docker-compose.sh stop copilot`),
 повторите вопрос и измените фильтр: панель сообщает об ошибке, граф остаётся рабочим.
-Вернуть сервис: `docker compose start copilot`.
+Вернуть сервис: `./scripts/docker-compose.sh start copilot`.
