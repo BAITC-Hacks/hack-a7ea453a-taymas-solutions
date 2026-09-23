@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import GraphCanvas, { type GraphCommand } from '../GraphCanvas'
 import type { EdgeRecord, NodeRecord } from '../types'
-import { ROLE_LABELS, number, money } from '../presentation'
+import { ROLE_LABELS, number, money, clusterColor } from '../presentation'
 import { summarizeNodeFlows } from '../filters'
 import { Icon } from './Icon'
 
@@ -43,6 +43,7 @@ export function GraphPanel({
 }: Props) {
   const [colorMode, setColorMode] = useState<'role' | 'cluster'>('role')
   const [layout, setLayout] = useState<'flow' | 'network'>('flow')
+  const clusterIds = [...new Set(graph.nodes.map(node => node.cluster_id))].sort((a, b) => a - b)
   const canShowFlow = Boolean(graph.contextId && graph.nodes.length <= 65)
   const showFlow = canShowFlow && layout === 'flow'
   const flows = graph.contextId ? summarizeNodeFlows(graph.contextId, graph.edges) : undefined
@@ -69,6 +70,15 @@ export function GraphPanel({
           </button>
         </div>
       </div>
+      {colorMode === 'cluster' && <section className="cluster-legend" aria-label="Цвета кластеров на графе">
+        <p>Цвет узла = кластер · показано {clusterIds.length}</p>
+        {clusterIds.length ? <ul tabIndex={0} aria-label="Кластеры текущего вида">
+          {clusterIds.map(clusterId => <li key={clusterId} data-cluster-id={clusterId}>
+            <i aria-hidden="true" style={{ backgroundColor: clusterColor(clusterId) }} />
+            Кластер {clusterId}
+          </li>)}
+        </ul> : <span>В текущем виде нет узлов</span>}
+      </section>}
       {hasAnswer && (
         <div className="evidence-strip" role="status">
           <Icon name="spark" size={14} />
@@ -194,14 +204,14 @@ export function GraphPanel({
             <i className="seed-ring" />
             Seed
           </span>
-          {colorMode === 'cluster' && <span>Цвет = кластер</span>}
+          <span>Цвет = {colorMode === 'cluster' ? 'кластер' : 'роль'}</span>
           {showFlow && <span>* В пределах вида</span>}
         </div>
       </div>
       <div className="graph-footer">
         <span>
           <i className="status-dot live" />
-          <strong>{number(graph.nodes.length)}</strong> узлов{graph.extraCount ? ` · +${graph.extraCount} из ответа` : ` из ${number(graph.total)}`} ·{' '}
+          <strong>{number(graph.nodes.length)}</strong> узлов{graph.extraCount ? ` · +${graph.extraCount} вне фильтров/лимита` : ` из ${number(graph.total)}`} ·{' '}
           {number(graph.edges.length)} связей
         </span>
         <span>Прокрутка — масштаб · перетаскивание — обзор</span>

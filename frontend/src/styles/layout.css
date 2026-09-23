@@ -286,6 +286,7 @@ h1 > span {
 .priority-heading .text-button {
   margin-left: auto;
 }
+.priority-count { padding: 8px 22px; color: var(--muted); font-size: 11px; }
 .table-head,
 .table-row {
   display: grid;
@@ -328,10 +329,14 @@ h1 > span {
   color: var(--soft);
   font-size: 11px;
   padding: 8px 0;
-  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
 }
+.table-node > span { min-width: 0; overflow-wrap: anywhere; }
 .table-node svg {
   color: var(--faint);
+  flex-shrink: 0;
 }
 .table-node:hover,
 .table-node:hover svg {

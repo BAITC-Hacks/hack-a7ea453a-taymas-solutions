@@ -197,7 +197,7 @@ function FlowList({
         </p>
       )}
       {rows.length > 4 && (
-        <button className="text-button" onClick={() => setExpanded(!expanded)}>
+        <button className="text-button" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
           {expanded ? 'Свернуть' : `Показать все ${rows.length} связей`}
         </button>
       )}
